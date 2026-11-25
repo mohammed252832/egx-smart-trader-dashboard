@@ -1,0 +1,51 @@
+{
+  "model": {
+    "label_target_pct": 2.0,
+    "train_fraction": 0.8,
+    "purge_sessions": 3,
+    "min_training_rows": 150,
+    "xgboost": {
+      "n_estimators": 280,
+      "max_depth": 4,
+      "learning_rate": 0.05,
+      "min_child_weight": 3,
+      "subsample": 0.9,
+      "colsample_bytree": 0.9,
+      "random_state": 42
+    }
+  },
+  "risk": {
+    "target_atr_multiplier": 1.8,
+    "stop_atr_multiplier": 1.1,
+    "min_target_pct": 1.5,
+    "max_target_pct": 9.0,
+    "min_stop_pct": 0.8,
+    "max_stop_pct": 5.0,
+    "max_reward_risk": 3.0,
+    "max_upside_pct": 8.0,
+    "support_lookback": 20,
+    "level_buffer_pct": 0.5,
+    "price_limit_pct": 10.0,
+    "limit_buffer_pct": 0.5,
+    "tick_size_tiers": [
+      { "max_price_egp": 1.0, "tick_size_egp": 0.005 },
+      { "max_price_egp": 5.0, "tick_size_egp": 0.01 },
+      { "max_price_egp": 20.0, "tick_size_egp": 0.05 },
+      { "max_price_egp": 100.0, "tick_size_egp": 0.1 },
+      { "max_price_egp": null, "tick_size_egp": 0.5 }
+    ]
+  },
+  "signals": {
+    "strong_buy_probability": 0.68,
+    "buy_probability": 0.56,
+    "avoid_probability": 0.4,
+    "strong_buy_score": 75,
+    "min_reward_risk": 1.2
+  },
+  "score_weights": {
+    "probability": 65,
+    "reward_risk": 20,
+    "momentum": 10,
+    "volume": 5
+  }
+}

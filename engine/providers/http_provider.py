@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import requests
@@ -13,7 +13,7 @@ _LIST_KEYS = ("data", "results", "items", "rows", "bars", "history", "prices", "
 
 
 def _render(template: str, values: dict[str, Any]) -> str:
-    """Replace {symbol}, {days}, {api_key} without failing on other braces."""
+    """Replace supported placeholders without failing on unrelated braces."""
     rendered = template
     for key, value in values.items():
         rendered = rendered.replace("{" + key + "}", str(value))
@@ -85,24 +85,33 @@ def _to_float(value: Any) -> float | None:
 
 
 class HttpProvider(Provider):
-    """Generic, env-driven REST adapter for EGX / EGID / DataCedar / Borsa-style APIs."""
+    """Generic, env-driven REST adapter for licensed EGX data vendors."""
 
     def __init__(self, config: ProviderConfig, timeout: int = 20):
         self.config = config
-        self.name = config.prefix.lower()
+        # Prefix the name so a generic BORSA_* template cannot overwrite the
+        # dedicated BorsaProvider entry in collected.raw_bars/source_rows.
+        self.name = f"http_{config.prefix.lower()}"
         self.timeout = timeout
         self.last_error = None
 
     def _get(self, template: str, **values: Any) -> Any:
         url = _render(template, values)
-        params: dict[str, Any] = {}
         headers: dict[str, str] = {"Accept": "application/json"}
+        headers.update(self.config.extra_headers)
         if self.config.api_key:
-            headers["Authorization"] = f"Bearer {self.config.api_key}"
-            headers["x-api-key"] = self.config.api_key
-            if "{api_key}" not in template:
-                params["api_key"] = self.config.api_key
-        response = requests.get(url, params=params or None, headers=headers, timeout=self.timeout)
+            configured = self.config.auth_header
+            if configured and "{token}" in configured:
+                header_name, header_value = configured.split(":", 1) if ":" in configured else (configured, "{token}")
+                headers[header_name.strip()] = header_value.replace("{token}", self.config.api_key).strip()
+            elif configured:
+                headers[configured] = self.config.api_key
+            else:
+                # Both headers keep the generic adapter compatible with vendors
+                # that use Bearer tokens and vendors that expect X-API-Key.
+                headers["Authorization"] = f"Bearer {self.config.api_key}"
+                headers["x-api-key"] = self.config.api_key
+        response = requests.get(url, headers=headers, timeout=self.timeout)
         response.raise_for_status()
         return response.json()
 
@@ -143,8 +152,17 @@ class HttpProvider(Provider):
     def fetch_history(self, symbol: str, days: int) -> list[Bar]:
         if not self.config.history_url:
             return []
+        end = date.today()
+        start = end - timedelta(days=max(1, days))
         try:
-            payload = self._get(self.config.history_url, symbol=symbol, days=days, api_key=self.config.api_key)
+            payload = self._get(
+                self.config.history_url,
+                symbol=symbol,
+                days=days,
+                api_key=self.config.api_key,
+                start=start.isoformat(),
+                end=end.isoformat(),
+            )
         except Exception as exc:
             self.last_error = f"history[{symbol}]: {exc}"
             return []

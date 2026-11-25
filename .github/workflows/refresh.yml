@@ -1,0 +1,53 @@
+name: EGX 10-minute quotes
+
+on:
+  # 07:00-13:50 UTC covers 10:00-15:50 Cairo in both EET and EEST.
+  # The refresh command skips outside 10:00-15:00 Cairo time.
+  schedule:
+    - cron: "*/10 7-13 * * 0-4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: egx-quote-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: engine/requirements-refresh.txt
+
+      - name: Install refresh dependencies
+        run: python -m pip install -r engine/requirements-refresh.txt
+
+      - name: Refresh delayed EGX quotes
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          EGX_TRADINGVIEW_ENABLED: ${{ secrets.EGX_TRADINGVIEW_ENABLED || 'true' }}
+          EGX_TRADINGVIEW_SCANNER_URL: ${{ secrets.EGX_TRADINGVIEW_SCANNER_URL || 'https://scanner.tradingview.com/egypt/scan' }}
+          EGX_TRADINGVIEW_DELAY_SECONDS: ${{ secrets.EGX_TRADINGVIEW_DELAY_SECONDS || '900' }}
+          EGX_TRADINGVIEW_CHUNK_SIZE: ${{ secrets.EGX_TRADINGVIEW_CHUNK_SIZE || '100' }}
+          EGX_YAHOO_QUOTE_ENABLED: ${{ secrets.EGX_YAHOO_QUOTE_ENABLED || 'true' }}
+          EGX_YAHOO_HOSTS: ${{ secrets.EGX_YAHOO_HOSTS || 'query1.finance.yahoo.com,query2.finance.yahoo.com' }}
+          EGX_YAHOO_QUOTE_DELAY_SECONDS: ${{ secrets.EGX_YAHOO_QUOTE_DELAY_SECONDS || '1' }}
+          EGX_QUOTE_FORCE_REFRESH: ${{ github.event_name == 'workflow_dispatch' }}
+          EGID_ENABLED: ${{ secrets.EGID_ENABLED || 'true' }}
+          EGID_USERNAME: ${{ secrets.EGID_USERNAME }}
+          EGID_PASSWORD: ${{ secrets.EGID_PASSWORD }}
+          EGID_BASE_URL: ${{ secrets.EGID_BASE_URL || 'https://ticker.egidegypt.com' }}
+          EGID_DELAY_SECONDS: ${{ secrets.EGID_DELAY_SECONDS || '900' }}
+          EGX_REQUEST_TIMEOUT: ${{ secrets.EGX_REQUEST_TIMEOUT || '20' }}
+        run: python -m engine.refresh

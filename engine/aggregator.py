@@ -1,12 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any
 
 import pandas as pd
 
 from .config import Config
-from .providers import Bar, CsvProvider, HttpProvider, Provider, SampleProvider, UniverseEntry
+from .providers import (
+    Bar,
+    BorsaProvider,
+    CsvProvider,
+    HttpProvider,
+    Provider,
+    UniverseEntry,
+    YahooProvider,
+)
 
 
 @dataclass
@@ -25,15 +34,36 @@ def _providers(config: Config) -> list[Provider]:
         if provider_config.enabled:
             providers.append(HttpProvider(provider_config, config.request_timeout))
 
+    if config.yahoo_enabled:
+        providers.append(
+            YahooProvider(
+                universe_url=config.yahoo_universe_url,
+                symbols=config.universe.seed_symbols,
+                range_=config.yahoo_range,
+                hosts=config.yahoo_hosts,
+                timeout=config.request_timeout,
+            )
+        )
+
+    if config.borsa_enabled:
+        providers.append(
+            BorsaProvider(
+                base_url=config.borsa_base_url,
+                api_key=config.borsa_api_key,
+                symbols=config.universe.seed_symbols,
+                timeout=config.request_timeout,
+            )
+        )
+
     csv_provider = CsvProvider.from_env()
     if csv_provider.enabled:
         providers.append(csv_provider)
 
-    # Sample data is the safety net: it also fills symbols discovered by other sources.
-    if config.use_sample:
-        providers.append(SampleProvider(config.history_days))
     if not providers:
-        raise RuntimeError("No data provider configured: set EGX_USE_SAMPLE=true or provider URL templates")
+        raise RuntimeError(
+            "No real data provider configured: enable EGX_YAHOO_ENABLED / EGX_BORSA_ENABLED "
+            "or set a licensed HTTP provider URL"
+        )
     return providers
 
 
@@ -57,32 +87,62 @@ def collect(config: Config) -> Collected:
     if not symbols:
         raise RuntimeError("No symbols returned by any data provider")
 
-    for provider in providers:
-        by_symbol: dict[str, list[Bar]] = {}
-        for symbol in symbols:
-            try:
-                bars = provider.fetch_history(symbol, config.history_days)
-            except Exception as exc:
-                provider.last_error = f"history[{symbol}]: {exc}"
-                bars = []
-            if bars:
-                by_symbol[symbol] = bars
-                collected.sources_by_symbol.setdefault(symbol, []).append(provider.name)
+    def fetch_histories(active: list[Provider]) -> None:
+        for provider in active:
+            by_symbol: dict[str, list[Bar]] = {}
+            for symbol in symbols:
+                try:
+                    bars = provider.fetch_history(symbol, config.history_days)
+                except Exception as exc:
+                    provider.last_error = f"history[{symbol}]: {exc}"
+                    bars = []
+                if bars:
+                    by_symbol[symbol] = bars
+                    collected.sources_by_symbol.setdefault(symbol, []).append(provider.name)
 
-        collected.raw_bars[provider.name] = by_symbol
-        collected.source_rows[provider.name] = sum(len(bars) for bars in by_symbol.values())
-        if provider.last_error:
-            collected.source_errors[provider.name] = provider.last_error
-        elif collected.source_rows[provider.name] == 0:
-            collected.source_errors[provider.name] = "no rows returned"
+            collected.raw_bars[provider.name] = by_symbol
+            collected.source_rows[provider.name] = sum(len(bars) for bars in by_symbol.values())
+            if provider.last_error:
+                collected.source_errors[provider.name] = provider.last_error
+            elif collected.source_rows[provider.name] == 0:
+                collected.source_errors[provider.name] = "no rows returned"
+
+    # Quote-only providers are collected after a history provider has revealed
+    # the real trading date, so their bars are not stamped with a fetch time.
+    deferred = [provider for provider in providers if provider.needs_trade_date]
+    fetch_histories([provider for provider in providers if not provider.needs_trade_date])
+
+    trade_date = _resolve_trade_date(collected.raw_bars)
+    if deferred:
+        if trade_date is None:
+            for provider in deferred:
+                provider.last_error = "no history provider supplied a trade date"
+        else:
+            for provider in deferred:
+                provider.bind_trade_date(trade_date)
+            fetch_histories(deferred)
 
     for prefix in config.provider_prefixes:
-        name = prefix.lower()
+        name = f"http_{prefix.lower()}"
+        if name not in collected.source_rows:
+            collected.source_rows[name] = 0
+            collected.source_errors[name] = "not configured"
+
+    for name in ("yahoo", "borsa"):
         if name not in collected.source_rows:
             collected.source_rows[name] = 0
             collected.source_errors[name] = "not configured"
 
     return collected
+
+
+def _resolve_trade_date(raw_bars: dict[str, dict[str, list[Bar]]]) -> date | None:
+    """Pick the latest real session from a history provider (Yahoo preferred)."""
+    for name in ("yahoo", *raw_bars):
+        dates = [bar.trade_date for bars in raw_bars.get(name, {}).values() for bar in bars]
+        if dates:
+            return max(dates)
+    return None
 
 
 def aggregate_bars(raw_bars: dict[str, dict[str, list[Bar]]]) -> dict[str, pd.DataFrame]:

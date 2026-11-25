@@ -25,14 +25,14 @@ def _chunks(rows: list[dict[str, Any]], size: int = 200) -> Iterable[list[dict[s
 
 
 class SupabaseRepository:
-    """Thin PostgREST client for the engine (service-role key only)."""
+    """Thin PostgREST client for the engine (secret key only)."""
 
-    def __init__(self, url: str, service_role_key: str, timeout: int = 20):
+    def __init__(self, url: str, secret_key: str, timeout: int = 20):
         self.base_url = f"{url.rstrip('/')}/rest/v1"
         self.timeout = timeout
         self.headers = {
-            "apikey": service_role_key,
-            "Authorization": f"Bearer {service_role_key}",
+            "apikey": secret_key,
+            "Authorization": f"Bearer {secret_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
         }

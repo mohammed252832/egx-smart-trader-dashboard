@@ -14,13 +14,20 @@ class CsvProvider(Provider):
     name = "csv"
 
     def __init__(self, universe_path: str = "", history_dir: str = ""):
-        self.universe_path = Path(universe_path) if universe_path else Path("")
-        self.history_dir = Path(history_dir) if history_dir else Path("")
+        self._universe_configured = bool(universe_path.strip())
+        self._history_configured = bool(history_dir.strip())
+        self.universe_path = Path(universe_path) if self._universe_configured else Path("")
+        self.history_dir = Path(history_dir) if self._history_configured else Path("")
         self.last_error = None
 
     @property
     def enabled(self) -> bool:
-        return bool(self.universe_path) and self.universe_path.exists() and bool(self.history_dir)
+        return (
+            self._universe_configured
+            and self._history_configured
+            and self.universe_path.is_file()
+            and self.history_dir.is_dir()
+        )
 
     @classmethod
     def from_env(cls) -> "CsvProvider":

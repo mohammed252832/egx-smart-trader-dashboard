@@ -1,0 +1,35 @@
+{
+  "seed_symbols": [
+    "COMI", "TMGH", "FWRY", "HRHO", "EFIH", "SWDY", "ORHD", "EAST", "ABUK", "ADIB",
+    "TALM", "OLFI", "ISPH", "ECAP", "ALUM", "BTFH", "MASR", "ORAS", "SKPC", "AMOC",
+    "PHDC", "ETRS", "NIPH", "SCEM", "GGCC", "ROTO", "EGTS", "ELKA", "LUTS", "HELI",
+    "GBCO", "EDFM", "CLHO", "ZMID", "UNIT", "BONY", "MCQE", "RUBX", "ELEC", "DAPH"
+  ],
+  "minimum_universe_size": 100,
+  "liquidity": {
+    "lookback_sessions": 20,
+    "min_average_daily_value_egp": 500000
+  },
+  "penny_stock": {
+    "max_price_egp": 1.0,
+    "exclude": false
+  },
+  "quality": {
+    "min_history_bars": 120,
+    "max_daily_jump_pct": 25.0,
+    "max_intraday_range_pct": 60.0
+  },
+  "freshness": {
+    "max_stale_sessions": 1
+  },
+  "index_sources": [
+    {
+      "name": "EGX30",
+      "url": "https://www.egx.com.eg/en/currentindexconstituntes.aspx?type=1&nav=1"
+    },
+    {
+      "name": "EGX70",
+      "url": "https://www.egx.com.eg/en/currentindexconstituntes.aspx?type=16&nav=16"
+    }
+  ]
+}

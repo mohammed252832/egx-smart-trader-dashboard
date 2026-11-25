@@ -29,11 +29,21 @@ create table if not exists public.analysis_runs (
   id uuid primary key default gen_random_uuid(),
   started_at timestamptz not null default now(),
   finished_at timestamptz,
-  status text not null check (status in ('running', 'success', 'failed')),
+  status text not null check (status in ('running', 'success', 'failed', 'skipped')),
   model_version text,
   universe_size integer,
+  market_date date,
+  symbols_requested integer,
+  symbols_fetched integer,
+  symbols_eligible integer,
+  symbols_dropped integer,
+  drop_reasons jsonb not null default '{}'::jsonb,
+  quality_report jsonb not null default '{}'::jsonb,
   notes text
 );
+
+create index if not exists analysis_runs_status_finished_idx
+  on public.analysis_runs (status, finished_at desc);
 
 create table if not exists public.recommendations (
   id uuid primary key default gen_random_uuid(),
@@ -48,6 +58,7 @@ create table if not exists public.recommendations (
   risk_pct numeric(8, 4) not null,
   reward_risk numeric(8, 4) not null,
   score numeric(8, 4) not null,
+  probability numeric(8, 4),
   confidence numeric(8, 4),
   signal text not null,
   sources text[] not null default '{}',
@@ -77,10 +88,35 @@ create table if not exists public.data_source_status (
   last_success_at timestamptz,
   last_error text,
   rows_written integer not null default 0,
+  source_timestamp timestamptz,
+  delay_seconds integer,
+  market_date date,
   updated_at timestamptz not null default now()
 );
 
-create or replace view public.top_recommendations
+create table if not exists public.live_quotes (
+  symbol text primary key references public.stocks (symbol) on delete cascade,
+  price numeric(12, 4) not null check (price > 0),
+  previous_close numeric(12, 4) check (previous_close is null or previous_close > 0),
+  change_pct numeric(10, 4),
+  open numeric(12, 4) check (open is null or open > 0),
+  high numeric(12, 4) check (high is null or high > 0),
+  low numeric(12, 4) check (low is null or low > 0),
+  volume bigint not null default 0 check (volume >= 0),
+  turnover numeric(18, 4) check (turnover is null or turnover >= 0),
+  source text not null,
+  source_timestamp timestamptz,
+  delay_seconds integer not null default 900 check (delay_seconds >= 0),
+  market_date date,
+  fetched_at timestamptz not null default now()
+);
+
+create index if not exists live_quotes_fetched_at_idx
+  on public.live_quotes (fetched_at desc);
+
+drop view if exists public.top_recommendations;
+
+create view public.top_recommendations
   with (security_invoker = true)
 as
 select
@@ -96,6 +132,7 @@ select
   r.risk_pct,
   r.reward_risk,
   r.score,
+  r.probability,
   r.confidence,
   r.signal,
   r.sources,
@@ -120,6 +157,7 @@ alter table public.analysis_runs enable row level security;
 alter table public.recommendations enable row level security;
 alter table public.recommendation_outcomes enable row level security;
 alter table public.data_source_status enable row level security;
+alter table public.live_quotes enable row level security;
 
 create policy "public read stocks"
   on public.stocks for select to anon, authenticated using (true);
@@ -139,4 +177,8 @@ create policy "public read outcomes"
 create policy "public read source status"
   on public.data_source_status for select to anon, authenticated using (true);
 
+create policy "public read live quotes"
+  on public.live_quotes for select to anon, authenticated using (true);
+
 grant select on public.top_recommendations to anon, authenticated;
+grant select on public.live_quotes to anon, authenticated;

@@ -1,0 +1,96 @@
+name: EGX daily analysis
+
+on:
+  # EGX trades Sunday–Thursday and closes at 14:30 Cairo time.
+  # 13:30 UTC = 15:30 EET (winter) / 16:30 EEST (summer), safely after close.
+  # GitHub cron is UTC-only and cannot follow DST; the later summer offset is
+  # intentional so a single schedule never runs before the Cairo close.
+  schedule:
+    - cron: "30 13 * * 0-4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: egx-daily-analysis
+  cancel-in-progress: false
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: engine/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r engine/requirements.txt
+
+      - name: Run engine tests
+        run: python -m unittest discover -s engine/tests -t .
+
+      - name: Run analysis and write to Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+
+          EGX_UNIVERSE_CONFIG: ${{ secrets.EGX_UNIVERSE_CONFIG || 'engine/config/universe.json' }}
+          EGX_SIGNALS_CONFIG: ${{ secrets.EGX_SIGNALS_CONFIG || 'engine/config/signals.json' }}
+          EGX_HISTORY_DAYS: ${{ secrets.EGX_HISTORY_DAYS || '400' }}
+          EGX_HORIZON_DAYS: ${{ secrets.EGX_HORIZON_DAYS || '3' }}
+          EGX_TOP_N: ${{ secrets.EGX_TOP_N || '10' }}
+          EGX_MODEL_VERSION: ${{ secrets.EGX_MODEL_VERSION || 'xgboost-v1' }}
+          EGX_REQUEST_TIMEOUT: ${{ secrets.EGX_REQUEST_TIMEOUT || '20' }}
+          EGX_PROVIDERS: ${{ secrets.EGX_PROVIDERS || 'DATACEDAR,EGID,BORSA,EGX,OANOR,EGXNEWS' }}
+
+          EGX_YAHOO_ENABLED: ${{ secrets.EGX_YAHOO_ENABLED || 'true' }}
+          EGX_YAHOO_UNIVERSE_URL: ${{ secrets.EGX_YAHOO_UNIVERSE_URL || 'https://ticker.egidegypt.com/api/Feed/GetAllMarketWatchNames' }}
+          EGX_YAHOO_RANGE: ${{ secrets.EGX_YAHOO_RANGE || '2y' }}
+          EGX_YAHOO_HOSTS: ${{ secrets.EGX_YAHOO_HOSTS || 'query1.finance.yahoo.com,query2.finance.yahoo.com' }}
+
+          EGX_BORSA_ENABLED: ${{ secrets.EGX_BORSA_ENABLED || 'true' }}
+          EGX_BORSA_BASE_URL: ${{ secrets.EGX_BORSA_BASE_URL || 'https://demo.borsa.ashh.me' }}
+          EGX_BORSA_API_KEY: ${{ secrets.EGX_BORSA_API_KEY }}
+
+          DATACEDAR_API_KEY: ${{ secrets.DATACEDAR_API_KEY }}
+          DATACEDAR_UNIVERSE_URL: ${{ secrets.DATACEDAR_UNIVERSE_URL }}
+          DATACEDAR_HISTORY_URL: ${{ secrets.DATACEDAR_HISTORY_URL }}
+
+          EGID_API_KEY: ${{ secrets.EGID_API_KEY }}
+          EGID_UNIVERSE_URL: ${{ secrets.EGID_UNIVERSE_URL }}
+          EGID_HISTORY_URL: ${{ secrets.EGID_HISTORY_URL }}
+          EGID_AUTH_HEADER: ${{ secrets.EGID_AUTH_HEADER }}
+          EGID_EXTRA_HEADERS: ${{ secrets.EGID_EXTRA_HEADERS }}
+
+          BORSA_API_KEY: ${{ secrets.BORSA_API_KEY }}
+          BORSA_UNIVERSE_URL: ${{ secrets.BORSA_UNIVERSE_URL }}
+          BORSA_HISTORY_URL: ${{ secrets.BORSA_HISTORY_URL }}
+
+          EGX_API_KEY: ${{ secrets.EGX_API_KEY }}
+          EGX_UNIVERSE_URL: ${{ secrets.EGX_UNIVERSE_URL }}
+          EGX_HISTORY_URL: ${{ secrets.EGX_HISTORY_URL }}
+
+          OANOR_API_KEY: ${{ secrets.OANOR_API_KEY }}
+          OANOR_UNIVERSE_URL: ${{ secrets.OANOR_UNIVERSE_URL }}
+          OANOR_HISTORY_URL: ${{ secrets.OANOR_HISTORY_URL }}
+          OANOR_AUTH_HEADER: ${{ secrets.OANOR_AUTH_HEADER || 'x-oanor-key' }}
+
+          EGXNEWS_API_KEY: ${{ secrets.EGXNEWS_API_KEY }}
+          EGXNEWS_UNIVERSE_URL: ${{ secrets.EGXNEWS_UNIVERSE_URL }}
+          EGXNEWS_HISTORY_URL: ${{ secrets.EGXNEWS_HISTORY_URL }}
+          EGXNEWS_EXTRA_HEADERS: ${{ secrets.EGXNEWS_EXTRA_HEADERS }}
+        run: python -m engine.run
+
+      - name: Refresh Vercel dashboard cache
+        run: curl --fail --silent --show-error --request POST "$VERCEL_DEPLOY_HOOK"
+        env:
+          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
