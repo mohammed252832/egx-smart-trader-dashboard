@@ -91,6 +91,11 @@ jobs:
         run: python -m engine.run
 
       - name: Refresh Vercel dashboard cache
-        run: curl --fail --silent --show-error --request POST "$VERCEL_DEPLOY_HOOK"
+        run: |
+          if [ -n "$VERCEL_DEPLOY_HOOK" ]; then
+            curl --fail --silent --show-error --request POST "$VERCEL_DEPLOY_HOOK"
+          else
+            echo "VERCEL_DEPLOY_HOOK is not configured; Git deployment and dashboard revalidation remain active."
+          fi
         env:
           VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}

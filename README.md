@@ -78,6 +78,7 @@ EGX_HISTORY_DAYS=400
 EGX_HORIZON_DAYS=3
 EGX_TOP_N=10
 EGX_MODEL_VERSION=xgboost-v1
+VERCEL_DEPLOY_HOOK          # اختياري؛ النشر التلقائي من GitHub يكفي بدون هذا الـhook
 ```
 
 > لم يعد `EGX_USE_SAMPLE` موجوداً؛ البيانات التجريبية غير مستخدمة في الإنتاج. حدّد القائمة والحدود في `engine/config/universe.json` أو اضبط `EGX_UNIVERSE_CONFIG`.

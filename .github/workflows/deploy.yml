@@ -22,6 +22,10 @@ jobs:
     steps:
       - name: Trigger Vercel deployment
         run: |
-          curl --fail --silent --show-error --request POST "$VERCEL_DEPLOY_HOOK"
+          if [ -n "$VERCEL_DEPLOY_HOOK" ]; then
+            curl --fail --silent --show-error --request POST "$VERCEL_DEPLOY_HOOK"
+          else
+            echo "VERCEL_DEPLOY_HOOK is not configured; the connected Git repository remains the deployment source."
+          fi
         env:
           VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
