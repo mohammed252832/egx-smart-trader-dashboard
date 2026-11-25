@@ -180,7 +180,7 @@ export default async function Page() {
             <h3 className="my-4 text-3xl font-black text-emerald-400">
               {stats.analyzed === null ? "—" : stats.analyzed}
             </h3>
-            <p className="text-xs text-gray-500">من كامل السوق في آخر تشغيل</p>
+            <p className="text-xs text-gray-500">من قائمة السوق بعد فلاتر الجودة والسيولة</p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-[#111c30] p-6">
             <p className="text-sm text-gray-400">متوسط الصعود المتوقع</p>

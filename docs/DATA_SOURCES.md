@@ -7,7 +7,7 @@ No credentials were used and no private data was accessed. Prices/licensing can 
 
 | Source | Coverage | Auth | Cost | Daily history | Live/same-day | Integration status |
 | --- | --- | --- | --- | --- | --- | --- |
-| Yahoo Finance `.CA` | ~40–300 EGX tickers, variable per symbol | None (unofficial) | Free | Yes, `range=2y` | Daily bars only in free quote mode | **Active** — history backbone and daily quote fallback |
+| Yahoo Finance `.CA` | Full public EGID list configured; history coverage varies by symbol | None (unofficial) | Free | Yes, `range=2y` | Daily bars only in free quote mode | **Active** — history backbone and daily quote fallback |
 | TradingView public EGX scanner | Tested liquid EGX names, including COMI/FWRY/ABUK | None (unofficial) | Free | No history endpoint used | Delayed, configured as 15 min | **Active** — credential-free 10-minute quote refresh |
 | EGID official feed | Official EGX ticker list and delayed market watch | Username/password for feed | Licensed feed | Feed has `GetSymbolHistories` | Delayed, usually 15 min | **Optional** — takes priority when credentials exist |
 | Borsa (`borsa.ashh.me`) | 200+ EGX symbols, normalized, sectors | None for demo; BYOK for self-host | MIT software; demo 50 req/day | No history endpoint | Yahoo-derived quotes | **Active** — universe/sector + same-day confirmation |
@@ -72,7 +72,7 @@ No credentials were used and no private data was accessed. Prices/licensing can 
 
 Daily-history providers implement `Provider.fetch_universe()` and `Provider.fetch_history()`. Sources with no history of their own set `needs_trade_date=True`; the aggregator binds the latest real session date from a history provider before collecting them. This prevents a quote's fetch timestamp from being published as a market date.
 
-The lightweight quote refresher is separate from model training. It reads the latest `top_recommendations` symbols, limited by `EGX_TOP_N`, and falls back to configured seed symbols before the first analysis. Provider priority is authenticated EGID when credentials exist, then TradingView delayed scanner, then Yahoo daily bars. Each successful batch records its source, source timestamp, configured delay, fetch time and market date in `live_quotes` and `data_source_status`. Partial failures are warnings; total failures preserve the last successful timestamp and prices.
+The lightweight quote refresher is separate from model training. It reads the latest `top_recommendations` symbols, limited by `EGX_TOP_N`, and falls back to the first configured symbols before the first analysis. Provider priority is authenticated EGID when credentials exist, then TradingView delayed scanner, then Yahoo daily bars. Each successful batch records its source, source timestamp, configured delay, fetch time and market date in `live_quotes` and `data_source_status`. Partial failures are warnings; total failures preserve the last successful timestamp and prices.
 
 Generic REST sources are configured with `{PREFIX}_UNIVERSE_URL` / `{PREFIX}_HISTORY_URL`, where `PREFIX` is one of `DATACEDAR`, `EGID`, `BORSA`, `EGX`, `OANOR`, `EGXNEWS`. Templates support `{symbol}`, `{days}`, `{start}`, `{end}`, `{api_key}`. Authentication is header-only: `{PREFIX}_AUTH_HEADER` may be a header name (`x-oanor-key`) or a template (`Authorization: Bearer {token}`), and `{PREFIX}_EXTRA_HEADERS` accepts `Header: value, Header2: value2`. API keys are never placed in query strings because proxies commonly log URLs.
 

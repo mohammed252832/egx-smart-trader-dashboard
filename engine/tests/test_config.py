@@ -11,7 +11,10 @@ from engine.providers import HttpProvider
 class ConfigTests(unittest.TestCase):
     def test_universe_config_loads_thresholds_from_file(self) -> None:
         config = load_universe_config()
-        self.assertEqual(len(config.seed_symbols), 40)
+        self.assertGreaterEqual(len(config.seed_symbols), 300)
+        self.assertEqual(len(config.seed_symbols), len(set(config.seed_symbols)))
+        self.assertEqual(config.seed_symbols, tuple(sorted(config.seed_symbols)))
+        self.assertTrue({"COMI", "FWRY", "ABUK", "TMGH"}.issubset(config.seed_symbols))
         self.assertGreaterEqual(config.minimum_universe_size, 100)
         self.assertGreater(config.min_history_bars, 0)
         self.assertGreater(config.min_average_daily_value, 0)

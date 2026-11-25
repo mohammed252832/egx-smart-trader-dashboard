@@ -98,7 +98,7 @@ EGX_YAHOO_RANGE=2y
 EGX_YAHOO_UNIVERSE_URL=https://ticker.egidegypt.com/api/Feed/GetAllMarketWatchNames
 ```
 
-قائمة الرموز والسيولة والحدود موجودة الآن في `engine/config/universe.json` (لا في الكود). المصدر يظهر في Supabase باسم `yahoo`، وعدد الصفوف يُسجّل في `data_source_status`.
+قائمة الرموز والسيولة والحدود موجودة الآن في `engine/config/universe.json` (لا في الكود). القائمة مشتقة من قائمة EGID العامة وتضم 306 رموزاً بتاريخ 2026-11-25؛ Yahoo لا يغطي كل الرموز بنفس العمق، لذلك يُسجّل المحرك عدد المطلوب والمتاح والمؤهل بعد فلاتر الجودة والسيولة. المصدر يظهر في Supabase باسم `yahoo`، وعدد الصفوف يُسجّل في `data_source_status`.
 
 ### Borsa (مصدر مفتوح المصدر، اختياري)
 
@@ -124,7 +124,7 @@ EGX_BORSA_API_KEY=        # اختياري، لنسخة مستضافة ذاتي�
 - الوضع المجاني لا يحتاج أي مفتاح: يستخدم [TradingView public EGX scanner](https://www.tradingview.com/) لجلب أسعار متأخرة للأسهم المتابعة فقط، عادةً بتأخير 15 دقيقة. هذا endpoint عام وغير رسمي، بلا ضمان خدمة أو SLA، وقد يتغير أو يُحظر؛ لا نعتبره بيانات لحظية.
 - عند تعذّر TradingView يرجع المحرك إلى Yahoo Finance، لكنه يعرضها بوضوح كـ **آخر إغلاق يومي** وليس كتحديث أثناء الجلسة. Yahoo يظل أيضاً مصدر التاريخ اليومي للتحليل.
 - EGID اختياري: إذا أضفت `EGID_USERNAME` و`EGID_PASSWORD` يصبح المصدر الأول تلقائياً، مع الرجوع إلى TradingView ثم Yahoo عند الفشل. `EGID_DELAY_SECONDS=900` هو الافتراضي.
-- الرموز هي أحدث توصيات `top_recommendations` بحد `EGX_TOP_N`؛ وقبل وجود توصيات تُستخدم رموز البداية من `engine/config/universe.json`.
+- الرموز هي أحدث توصيات `top_recommendations` بحد `EGX_TOP_N`؛ وقبل وجود توصيات تُستخدم أول رموز قائمة التحليل في `engine/config/universe.json`.
 - شغّل `supabase/migrations/0003_live_quotes.sql`. في المشاريع الجديدة قد تحتاج إلى تفعيل جدول `live_quotes` من **Integrations → Data API → Exposed tables**.
 - workflow الملف `.github/workflows/refresh.yml` مجدول كل 10 دقائق خلال نافذة تغطي جلسة EGX، ويتخطى التنفيذ خارج الساعة 10:00–15:00 بتوقيت القاهرة. زر **Run workflow** ينفّذ تحديثاً يدوياً حتى خارج الجلسة. مواعيد GitHub Actions قد تتأخر حسب ضغط الخدمة.
 - التحديث لا يعيد تدريب النموذج؛ التحليل الكامل يظل بعد الإغلاق. الأخطاء الجزئية تظهر كتحذير، وإذا فشلت كل المصادر تبقى آخر أسعار ناجحة مع آخر وقت نجاح بدل اختلاق تحديث جديد.
