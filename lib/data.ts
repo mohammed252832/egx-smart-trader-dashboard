@@ -1,4 +1,4 @@
-import { cacheLife } from "next/cache";
+import { connection } from "next/server";
 import { getSupabaseClient } from "./supabase";
 import { lastExpectedTradingSession } from "./market-time";
 import type { DashboardData, LiveQuote, MarketRefresh, Recommendation } from "./types";
@@ -137,8 +137,7 @@ function emptyData(): DashboardData {
 }
 
 export async function getDashboardData(): Promise<DashboardData> {
-  "use cache";
-  cacheLife({ stale: 60, revalidate: 60, expire: 600 });
+  await connection();
 
   const supabase = getSupabaseClient();
   if (!supabase) return emptyData();
