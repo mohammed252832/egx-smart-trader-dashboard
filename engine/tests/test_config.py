@@ -49,9 +49,28 @@ class ConfigTests(unittest.TestCase):
         self.assertTrue(config.yahoo_quote_enabled)
         self.assertEqual(config.tradingview_delay_seconds, 900)
         self.assertEqual(config.yahoo_quote_delay_seconds, 1.0)
+        self.assertTrue(config.egid_public_enabled)
+        self.assertEqual(
+            config.egid_public_ticker_url,
+            "https://feed.egitdns.net/api/DelayedFeed/getTickerInfo",
+        )
+        self.assertEqual(config.egid_public_delay_seconds, 900)
         self.assertEqual(config.egid_username, "")
         self.assertEqual(config.egid_password, "")
         self.assertEqual(config.market_universe_size, 250)
+
+    def test_public_egid_quote_source_is_configurable(self) -> None:
+        environment = {
+            "EGID_PUBLIC_ENABLED": "false",
+            "EGID_PUBLIC_TICKER_URL": "https://example.test/ticker",
+            "EGID_PUBLIC_DELAY_SECONDS": "1200",
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            config = Config.from_env()
+
+        self.assertFalse(config.egid_public_enabled)
+        self.assertEqual(config.egid_public_ticker_url, "https://example.test/ticker")
+        self.assertEqual(config.egid_public_delay_seconds, 1200)
 
     def test_market_universe_size_is_configurable_and_bounded(self) -> None:
         with patch.dict(os.environ, {"EGX_MARKET_UNIVERSE_SIZE": "300"}, clear=True):

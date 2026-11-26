@@ -10,7 +10,7 @@ from typing import Any
 from .config import Config
 from .market_time import CAIRO_TZ, is_quote_market_time
 from .providers.base import Quote, QuoteBatch
-from .providers.egid_provider import EgidQuoteProvider
+from .providers.egid_provider import EgidPublicQuoteProvider, EgidQuoteProvider
 from .providers.tradingview_provider import TradingViewQuoteProvider
 from .providers.yahoo_quote_provider import YahooQuoteProvider
 from .repository import SupabaseRepository
@@ -83,6 +83,14 @@ def _quote_providers(config: Config) -> list[Any]:
                 base_url=config.egid_base_url,
                 timeout=config.request_timeout,
                 delay_seconds=config.egid_delay_seconds,
+            )
+        )
+    if config.egid_public_enabled:
+        providers.append(
+            EgidPublicQuoteProvider(
+                ticker_url=config.egid_public_ticker_url,
+                timeout=config.request_timeout,
+                delay_seconds=config.egid_public_delay_seconds,
             )
         )
     if config.tradingview_enabled:
@@ -229,7 +237,7 @@ def _refresh(config: Config, repo: SupabaseRepository) -> int:
 
     providers = _quote_providers(config)
     if not providers:
-        LOG.error("Enable at least one quote source: EGID credentials, TradingView, or Yahoo")
+        LOG.error("Enable at least one quote source: EGID, TradingView, or Yahoo")
         return 2
 
     attempted_at = _now()

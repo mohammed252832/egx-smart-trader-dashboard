@@ -11,9 +11,15 @@ import requests
 from .base import Quote, QuoteBatch
 
 DEFAULT_BASE_URL = "https://ticker.egidegypt.com"
+DEFAULT_PUBLIC_TICKER_URL = "https://feed.egitdns.net/api/DelayedFeed/getTickerInfo"
 CAIRO_TZ = ZoneInfo("Africa/Cairo")
 _KEY_RE = re.compile(r"[^a-z0-9]+")
 _TIME_RE = re.compile(r"^\d{1,2}:\d{2}(?::\d{2})?$")
+_HEADERS = {
+    "Accept": "application/json",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+}
 
 
 def _key(value: Any) -> str:
@@ -120,6 +126,106 @@ def _token(payload: Any) -> str | None:
     return None
 
 
+def _parse_quotes(
+    payload: Any,
+    symbols: tuple[str, ...] | None,
+    now: datetime,
+) -> tuple[Quote, ...]:
+    quotes: list[Quote] = []
+    for row in _rows(payload):
+        symbol = _symbol(_pick(row, "symbol", "symbolCode", "reuters", "ticker", "code"))
+        price = _positive(
+            _pick(
+                row,
+                "lastTradePrice",
+                "lastPrice",
+                "last",
+                "price",
+                "closePrice",
+                "close",
+                "currentPrice",
+                "marketPrice",
+            )
+        )
+        if not symbol or price is None:
+            continue
+        previous_close = _positive(
+            _pick(row, "previousClose", "prevClose", "lastClose", "previousClosingPrice")
+        )
+        change_pct = _number(
+            _pick(row, "lastChangePrc", "changePct", "changePercent", "changePercentage")
+        )
+        if change_pct is None and previous_close:
+            change_pct = (price / previous_close - 1) * 100
+        raw_timestamp = _pick(
+            row,
+            "lastTradeDate",
+            "lastUpdate",
+            "lastUpdated",
+            "timestamp",
+            "lastTradeTime",
+            "updateTime",
+            "dateTime",
+        )
+        if raw_timestamp is None:
+            raw_date = _pick(row, "date", "tradeDate")
+            raw_time = _pick(row, "time", "tradeTime")
+            if raw_date not in (None, "") and raw_time not in (None, ""):
+                raw_timestamp = f"{raw_date} {raw_time}"
+        open_ = _positive(_pick(row, "open", "openPrice"))
+        high = _positive(_pick(row, "high", "highPrice"))
+        low = _positive(_pick(row, "low", "lowPrice"))
+        volume = max(0, int(_number(_pick(row, "totalVolume", "volume", "quantity")) or 0))
+        name_value = _pick(
+            row,
+            "engShortname",
+            "engName",
+            "englishName",
+            "name",
+            "companyName",
+            "arbShortname",
+            "arbName",
+            "arabicName",
+        )
+        quotes.append(
+            Quote(
+                symbol=symbol,
+                name=str(name_value).strip() if name_value not in (None, "") else None,
+                price=price,
+                previous_close=previous_close,
+                change_pct=change_pct,
+                open=open_,
+                high=max(high, price) if high is not None else None,
+                low=min(low, price) if low is not None else None,
+                volume=volume,
+                turnover=_positive(
+                    _pick(row, "totalValue", "turnover", "value", "tradedValue")
+                ),
+                source_timestamp=_timestamp(raw_timestamp, now),
+            )
+        )
+    if symbols is not None:
+        wanted = {
+            symbol.strip().upper().removesuffix(".CA")
+            for symbol in symbols
+            if symbol.strip()
+        }
+        quotes = [quote for quote in quotes if quote.symbol in wanted]
+    return tuple(quotes)
+
+
+def _quote_batch(source: str, quotes: tuple[Quote, ...], delay_seconds: int) -> QuoteBatch:
+    if not quotes:
+        raise RuntimeError(f"{source} returned no usable quotes")
+    timestamps = [quote.source_timestamp for quote in quotes if quote.source_timestamp]
+    return QuoteBatch(
+        source=source,
+        quotes=quotes,
+        source_timestamp=max(timestamps) if timestamps else None,
+        delay_seconds=delay_seconds,
+    )
+
+
 class EgidQuoteProvider:
     """Authenticated client for the official EGID delayed market feed."""
 
@@ -182,68 +288,32 @@ class EgidQuoteProvider:
 
     def fetch_quotes(self, symbols: tuple[str, ...] | None = None) -> QuoteBatch:
         payload = self._get("/api/DelayedFeed/getAllMarketWatch")
-        now = datetime.now(CAIRO_TZ)
-        quotes: list[Quote] = []
-        for row in _rows(payload):
-            symbol = _symbol(_pick(row, "symbol", "symbolCode", "reuters", "ticker", "code"))
-            price = _positive(
-                _pick(row, "last", "lastPrice", "price", "close", "currentPrice", "marketPrice")
-            )
-            if not symbol or price is None:
-                continue
-            previous_close = _positive(
-                _pick(row, "previousClose", "prevClose", "lastClose", "previousClosingPrice")
-            )
-            change_pct = _number(_pick(row, "changePct", "changePercent", "changePercentage"))
-            if change_pct is None and previous_close:
-                change_pct = (price / previous_close - 1) * 100
-            raw_timestamp = _pick(
-                row,
-                "lastUpdate",
-                "lastUpdated",
-                "timestamp",
-                "lastTradeTime",
-                "updateTime",
-                "dateTime",
-            )
-            if raw_timestamp is None:
-                raw_date = _pick(row, "date", "tradeDate")
-                raw_time = _pick(row, "time", "tradeTime")
-                if raw_date not in (None, "") and raw_time not in (None, ""):
-                    raw_timestamp = f"{raw_date} {raw_time}"
-            open_ = _positive(_pick(row, "open", "openPrice"))
-            high = _positive(_pick(row, "high", "highPrice"))
-            low = _positive(_pick(row, "low", "lowPrice"))
-            volume = max(0, int(_number(_pick(row, "volume", "quantity")) or 0))
-            name_value = _pick(row, "name", "companyName", "arabicName", "englishName")
-            quotes.append(
-                Quote(
-                    symbol=symbol,
-                    name=str(name_value).strip() if name_value not in (None, "") else None,
-                    price=price,
-                    previous_close=previous_close,
-                    change_pct=change_pct,
-                    open=open_,
-                    high=max(high, price) if high is not None else None,
-                    low=min(low, price) if low is not None else None,
-                    volume=volume,
-                    turnover=_positive(_pick(row, "turnover", "value", "tradedValue")),
-                    source_timestamp=_timestamp(raw_timestamp, now),
-                )
-            )
-        if symbols is not None:
-            wanted = {
-                symbol.strip().upper().removesuffix(".CA")
-                for symbol in symbols
-                if symbol.strip()
-            }
-            quotes = [quote for quote in quotes if quote.symbol in wanted]
-        if not quotes:
-            raise RuntimeError("EGID delayed feed returned no usable quotes")
-        timestamps = [quote.source_timestamp for quote in quotes if quote.source_timestamp]
-        return QuoteBatch(
-            source=self.name,
-            quotes=tuple(quotes),
-            source_timestamp=max(timestamps) if timestamps else None,
-            delay_seconds=self.delay_seconds,
-        )
+        quotes = _parse_quotes(payload, symbols, datetime.now(CAIRO_TZ))
+        return _quote_batch(self.name, quotes, self.delay_seconds)
+
+
+class EgidPublicQuoteProvider:
+    """Credential-free client for the official EGID website ticker."""
+
+    name = "egid_public_delayed"
+
+    def __init__(
+        self,
+        ticker_url: str = DEFAULT_PUBLIC_TICKER_URL,
+        timeout: int = 20,
+        delay_seconds: int = 900,
+    ) -> None:
+        self.ticker_url = ticker_url
+        self.timeout = timeout
+        self.delay_seconds = max(0, delay_seconds)
+
+    def fetch_quotes(self, symbols: tuple[str, ...] | None = None) -> QuoteBatch:
+        response = requests.get(self.ticker_url, headers=_HEADERS, timeout=self.timeout)
+        if not response.ok:
+            raise RuntimeError(f"EGID public ticker failed ({response.status_code})")
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise RuntimeError("EGID public ticker returned invalid JSON") from exc
+        quotes = _parse_quotes(payload, symbols, datetime.now(CAIRO_TZ))
+        return _quote_batch(self.name, quotes, self.delay_seconds)

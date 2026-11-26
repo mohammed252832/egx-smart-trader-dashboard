@@ -94,14 +94,17 @@ VERCEL_DEPLOY_HOOK          # اختياري؛ النشر التلقائي من 
 
 بعد البحث في المصادر تبيّن أن:
 
-- [الموقع الرسمي للبورصة المصرية EGID](https://www.egidegypt.com/index.html) هو المرجع الرسمي، وقائمة الرموز العامة متاحة من `https://ticker.egidegypt.com/api/Feed/GetAllMarketWatchNames` (308 رموزاً بصيغة Reuters `.CA`). باقي endpoints في Swagger تتطلب Bearer token من `/api/Settings/GetToken` (بيانات دخول EGID).
-- صفحة الأسعار العامة داخل موقع EGID لا تُستخدم كمصدر للأسهم لأنها لا توفر تاريخ جلسة موثوقاً أو تغطية أسهم فردية متحققة، وتحتوي قيماً ثابتة للمؤشرات كاحتياطي. التحديث الرسمي يعتمد على Delayed Feed بعد إضافة بيانات الدخول.
+- [الموقع الرسمي للبورصة المصرية EGID](https://www.egidegypt.com/index.html) هو المرجع الرسمي. صفحة الأسعار العامة تستدعي `https://feed.egitdns.net/api/DelayedFeed/getTickerInfo` بدون بيانات دخول؛ تحققنا أثناء جلسة 2026-11-26 من 235 سهماً فردياً مع `LAST_TRADE_DATE` وأسعار الافتتاح والأعلى والأدنى والإغلاق والحجم وقيمة التداول. يُفسَّر التاريخ والوقت بتوقيت القاهرة.
+- قائمة الرموز العامة متاحة أيضاً من `https://ticker.egidegypt.com/api/Feed/GetAllMarketWatchNames` (308 رموزاً بصيغة Reuters `.CA`). endpoints الخاصة بـ Delayed Feed في Swagger تتطلب Bearer token من `/api/Settings/GetToken` (بيانات دخول EGID).
 - صفحة `https://egx.com.eg/en/infograph.aspx` محمية بتحدّي F5 ولا تعرض JSON يمكن استخدامه مباشرة.
 - Yahoo Finance يوفّر شموعاً يومية حقيقية لرموز EGX بصيغة `.CA` (مثل `FWRY.CA`) بدون مفتاح.
 
 لذلك اضبط في GitHub Secrets (أو `.env` محلياً):
 
 ```
+EGID_PUBLIC_ENABLED=true
+EGID_PUBLIC_TICKER_URL=https://feed.egitdns.net/api/DelayedFeed/getTickerInfo
+EGID_PUBLIC_DELAY_SECONDS=900
 EGX_YAHOO_ENABLED=true
 EGX_YAHOO_RANGE=2y
 EGX_YAHOO_UNIVERSE_URL=https://ticker.egidegypt.com/api/Feed/GetAllMarketWatchNames
@@ -128,11 +131,11 @@ EGX_BORSA_API_KEY=        # اختياري، لنسخة مستضافة ذاتي�
 
 النسخة العامة لها حد يومي، لذلك في الإنتاج يفضّل استضافتها ذاتياً من [Docker image](https://ghcr.io/7ashraf/borsa:latest) مع مفاتيحك (BYOK). تظهر النتائج في `data_source_status` باسم `borsa` وتضاف إلى حقل `sources` في التوصيات.
 
-### تحديث الأسعار كل 10 دقائق بمصدر مجاني
+### تحديث الأسعار كل 10 دقائق
 
-- الوضع المجاني لا يحتاج أي مفتاح: يستخدم [TradingView public EGX scanner](https://www.tradingview.com/) لجلب أسعار متأخرة للأسهم المتابعة فقط، عادةً بتأخير 15 دقيقة. هذا endpoint عام وغير رسمي، بلا ضمان خدمة أو SLA، وقد يتغير أو يُحظر؛ لا نعتبره بيانات لحظية.
-- عند تعذّر TradingView أو نقص رموز منه يكمل المحرك الرموز الناقصة من Yahoo Finance، مع حفظ مصدر كل سهم على حدة. Yahoo يعرض بوضوح كـ **آخر إغلاق يومي** وليس كتحديث أثناء الجلسة، ويظل أيضاً مصدر التاريخ اليومي للتحليل.
-- EGID اختياري: إذا أضفت `EGID_USERNAME` و`EGID_PASSWORD` في GitHub Actions Secrets يصبح المصدر الأول تلقائياً، مع استكمال الرموز الناقصة من TradingView ثم Yahoo. `EGID_BASE_URL=https://ticker.egidegypt.com` و`EGID_DELAY_SECONDS=900` هما الافتراضييان. بعد إضافتهما شغّل workflow يدوياً وتحقق من ظهور `egid_delayed` في اللوحة.
+- المصدر الأول المجاني هو صفحة الأسعار الرسمية العامة من EGID، بدون مفتاح، للأسهم المتابعة فقط. يُسجّل باسم `egid_public_delayed` وبتأخير افتراضي 15 دقيقة (`EGID_PUBLIC_DELAY_SECONDS=900`). قد يعيد endpoint قائمة فارغة خارج جلسة التداول، ولا نعتبره تحديثاً لحظياً أو نضمن تغطيته لكل الرموز.
+- EGID المرخّص له الأولوية عند إضافة `EGID_USERNAME` و`EGID_PASSWORD` في GitHub Actions Secrets، ويُسجّل باسم `egid_delayed`. `EGID_BASE_URL=https://ticker.egidegypt.com` و`EGID_DELAY_SECONDS=900` هما الافتراضييان. لا تُخزَّن بيانات الدخول في المستودع أو الواجهة.
+- عند تعذّر EGID أو نقص رموز منه، يكمل المحرك من [TradingView public EGX scanner](https://www.tradingview.com/) ثم Yahoo Finance، مع حفظ مصدر وتاريخ كل سهم على حدة. TradingView عام وغير رسمي، بلا ضمان خدمة أو SLA. Yahoo يظهر بوضوح كـ **آخر إغلاق يومي** وليس كتحديث أثناء الجلسة، ويظل أيضاً مصدر التاريخ اليومي للتحليل.
 - الرموز هي أعلى `EGX_MARKET_UNIVERSE_SIZE` سهماً نشطةً في آخر جلسة متاحة، حسب وسيط قيمة تداول آخر 20 جلسة من عرض `latest_market` (الافتراضي 250)؛ وقبل إنشاء العرض تُستخدم أول رموز قائمة التحليل في `engine/config/universe.json`.
 - شغّل `supabase/migrations/0003_live_quotes.sql`. في المشاريع الجديدة قد تحتاج إلى تفعيل جدول `live_quotes` من **Integrations → Data API → Exposed tables**.
 - workflow الملف `.github/workflows/refresh.yml` مجدول كل 10 دقائق خلال نافذة تغطي جلسة EGX، ويتخطى التنفيذ خارج الساعة 10:00–15:00 بتوقيت القاهرة. زر **Run workflow** ينفّذ تحديثاً يدوياً حتى خارج الجلسة. مواعيد GitHub Actions قد تتأخر حسب ضغط الخدمة.
