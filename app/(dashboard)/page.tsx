@@ -161,12 +161,20 @@ export default async function Page() {
 
         <div className="mb-8 grid gap-3 rounded-2xl border border-white/10 bg-[#111c30] p-5 text-sm sm:grid-cols-3">
           <div>
-            <p className="text-gray-500">مصدر الأسعار</p>
+            <p className="text-gray-500">مصدر السعر</p>
             <p className={`mt-1 font-bold ${marketRefresh?.last_success_at ? "text-emerald-400" : "text-yellow-400"}`}>
               {marketRefresh?.last_success_at
                 ? quoteStatusLabel(marketRefresh.source, delayMinutes)
                 : "تحديث الأسعار غير مفعّل بعد"}
             </p>
+            <a
+              href="https://www.egidegypt.com/index.html"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1 inline-block text-xs text-emerald-300 underline-offset-4 hover:underline"
+            >
+              الموقع الرسمي للبورصة المصرية EGID
+            </a>
           </div>
           <div>
             <p className="text-gray-500">آخر تحديث ناجح</p>
