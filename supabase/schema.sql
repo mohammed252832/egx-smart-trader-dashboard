@@ -292,22 +292,17 @@ with market_session as (
   from public.stocks as stocks
   cross join market_session
   cross join lateral (
-    select bars.close, bars.volume
+    select bars.trade_date, bars.close, bars.volume
     from public.market_daily_bars as bars
     where bars.symbol = stocks.symbol
     order by bars.trade_date desc
     limit 20
   ) as recent
-  where stocks.is_active
-    and exists (
-      select 1
-      from public.market_daily_bars as current_bar
-      where current_bar.symbol = stocks.symbol
-        and current_bar.trade_date = market_session.trade_date
-    )
-  group by stocks.symbol
+  group by stocks.symbol, market_session.trade_date
   having count(*) >= 20
-    and count(recent.close) filter (where recent.close > 0 and recent.volume > 0) = 20
+    and max(recent.trade_date) >= market_session.trade_date - 30
+    and count(recent.close) filter (where recent.close > 0) = 20
+    and count(recent.volume) filter (where recent.volume > 0) >= 1
 ), ranked as (
   select
     stocks.symbol,
