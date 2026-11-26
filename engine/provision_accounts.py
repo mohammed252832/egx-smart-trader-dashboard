@@ -55,9 +55,15 @@ def _list_users(session: requests.Session, base_url: str, headers: dict[str, str
         page += 1
 
 
-def provision_accounts(supabase_url: str, secret_key: str) -> tuple[int, int]:
+def provision_accounts(
+    supabase_url: str,
+    secret_key: str,
+    shared_password: str | None = None,
+) -> tuple[int, int]:
     if not supabase_url or not secret_key.startswith("sb_secret_"):
         raise RuntimeError("SUPABASE_URL and a new sb_secret_ key are required")
+    if shared_password is not None and len(shared_password) < 6:
+        raise RuntimeError("The shared password must be at least 6 characters")
 
     base_url = f"{supabase_url.rstrip('/')}/auth/v1"
     headers = {
@@ -83,7 +89,7 @@ def provision_accounts(supabase_url: str, secret_key: str) -> tuple[int, int]:
                     headers=headers,
                     json={
                         "email": email,
-                        "password": secrets.token_urlsafe(32),
+                        "password": shared_password or secrets.token_urlsafe(32),
                         "email_confirm": True,
                         "app_metadata": {"role": "member"},
                     },
@@ -111,6 +117,8 @@ def provision_accounts(supabase_url: str, secret_key: str) -> tuple[int, int]:
                 payload["app_metadata"] = metadata
             if not user.get("email_confirmed_at"):
                 payload["email_confirm"] = True
+            if shared_password is not None:
+                payload["password"] = shared_password
             if payload:
                 _request(
                     session,
@@ -120,7 +128,8 @@ def provision_accounts(supabase_url: str, secret_key: str) -> tuple[int, int]:
                     json=payload,
                 )
                 updated += 1
-                print(f"Updated dashboard account authorization: {email}")
+                action = "authorization and password" if "password" in payload else "authorization"
+                print(f"Updated dashboard account {action}: {email}")
             else:
                 print(f"Dashboard account already ready: {email}")
     return created, updated
@@ -131,6 +140,7 @@ def main() -> int:
         provision_accounts(
             os.getenv("SUPABASE_URL", "").strip(),
             os.getenv("SUPABASE_SECRET_KEY", "").strip(),
+            os.getenv("SUPABASE_SHARED_PASSWORD") or None,
         )
     except Exception as exc:
         print(f"Account provisioning failed: {type(exc).__name__}: {exc}")
