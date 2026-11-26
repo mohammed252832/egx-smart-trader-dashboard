@@ -3,18 +3,35 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
 from .config import Config
 from .market_time import CAIRO_TZ, is_quote_market_time
-from .providers.base import QuoteBatch
+from .providers.base import Quote, QuoteBatch
 from .providers.egid_provider import EgidQuoteProvider
 from .providers.tradingview_provider import TradingViewQuoteProvider
 from .providers.yahoo_quote_provider import YahooQuoteProvider
 from .repository import SupabaseRepository
 
 LOG = logging.getLogger("egx.refresh")
+
+
+@dataclass(frozen=True)
+class SourcedQuote:
+    quote: Quote
+    source: str
+    delay_seconds: int
+
+
+@dataclass(frozen=True)
+class RefreshBatch:
+    quotes: tuple[SourcedQuote, ...]
+    source: str
+    source_timestamp: datetime | None
+    delay_seconds: int
+    errors: tuple[str, ...] = ()
 
 
 def _now() -> datetime:
@@ -29,12 +46,12 @@ def _symbol(value: Any) -> str:
 def _tracked_symbols(config: Config, repo: SupabaseRepository) -> tuple[str, ...]:
     try:
         rows = repo.select(
-            "top_recommendations",
+            "latest_market",
             columns="symbol",
-            params={"limit": config.top_n},
+            params={"order": "liquidity_rank.asc", "limit": config.market_universe_size},
         )
     except Exception:
-        LOG.exception("Could not read tracked recommendations; using configured seed symbols")
+        LOG.exception("Could not read the liquid market universe; using configured seed symbols")
         rows = []
 
     symbols = tuple(
@@ -43,7 +60,7 @@ def _tracked_symbols(config: Config, repo: SupabaseRepository) -> tuple[str, ...
             for row in rows
             if (symbol := _symbol(row.get("symbol")))
         )
-    )[: config.top_n]
+    )[: config.market_universe_size]
     if symbols:
         return symbols
 
@@ -53,7 +70,7 @@ def _tracked_symbols(config: Config, repo: SupabaseRepository) -> tuple[str, ...
             for value in config.universe.seed_symbols
             if (symbol := _symbol(value))
         )
-    )[: config.top_n]
+    )[: config.market_universe_size]
 
 
 def _quote_providers(config: Config) -> list[Any]:
@@ -103,23 +120,53 @@ def _tracked_batch(batch: QuoteBatch, symbols: tuple[str, ...]) -> QuoteBatch:
     )
 
 
-def _fetch_quotes(providers: list[Any], symbols: tuple[str, ...]) -> tuple[QuoteBatch, tuple[str, ...]]:
+def _fetch_quotes(providers: list[Any], symbols: tuple[str, ...]) -> RefreshBatch:
     failures: list[str] = []
+    warnings: list[str] = []
+    collected: dict[str, SourcedQuote] = {}
+    remaining = symbols
+
     for provider in providers:
+        if not remaining:
+            break
         try:
-            batch = _tracked_batch(provider.fetch_quotes(symbols), symbols)
-            if failures:
-                LOG.warning("Using %s after source fallback: %s", batch.source, "; ".join(failures))
-            return batch, tuple(failures)
+            batch = _tracked_batch(provider.fetch_quotes(remaining), remaining)
         except Exception as exc:
             message = f"{provider.name}: {type(exc).__name__}: {exc}"
             failures.append(message)
             LOG.warning("Quote source failed: %s", message)
-    raise RuntimeError("All quote sources failed: " + "; ".join(failures))
+            continue
+
+        received = {quote.symbol for quote in batch.quotes}
+        for quote in batch.quotes:
+            collected.setdefault(quote.symbol, SourcedQuote(quote, batch.source, batch.delay_seconds))
+        warnings.extend(batch.errors)
+        missing = tuple(symbol for symbol in remaining if symbol not in received)
+        if missing:
+            warnings.append(f"{batch.source} missing {len(missing)} tracked symbols")
+        if failures:
+            LOG.warning("Using %s after source fallback: %s", batch.source, "; ".join(failures))
+        remaining = missing
+
+    if not collected:
+        raise RuntimeError("All quote sources failed: " + "; ".join(failures))
+
+    if remaining:
+        warnings.append(f"{len(remaining)} tracked symbols still unavailable after all sources")
+    quotes = tuple(collected.values())
+    sources = tuple(dict.fromkeys(item.source for item in quotes))
+    timestamps = [item.quote.source_timestamp for item in quotes if item.quote.source_timestamp]
+    return RefreshBatch(
+        quotes=quotes,
+        source=sources[0] if len(sources) == 1 else "mixed",
+        source_timestamp=max(timestamps) if timestamps else None,
+        delay_seconds=max(item.delay_seconds for item in quotes),
+        errors=tuple(dict.fromkeys((*failures, *warnings))),
+    )
 
 
 def _status_payload(
-    batch: QuoteBatch,
+    batch: RefreshBatch,
     fetched_at: datetime,
     errors: Iterable[str] = (),
 ) -> dict:
@@ -191,18 +238,18 @@ def _refresh(config: Config, repo: SupabaseRepository) -> int:
         symbols = _tracked_symbols(config, repo)
         if not symbols:
             raise RuntimeError("No tracked symbols are configured")
-        batch, provider_errors = _fetch_quotes(providers, symbols)
+        batch = _fetch_quotes(providers, symbols)
         active_source = batch.source
-        warnings = tuple(dict.fromkeys((*provider_errors, *batch.errors)))
+        warnings = batch.errors
 
         existing_stocks = {
             row["symbol"]: row
             for row in repo.select("stocks", columns="symbol,name", params={"limit": 1000})
         }
         missing_stocks = [
-            {"symbol": quote.symbol, "name": quote.name or quote.symbol, "updated_at": attempted_at.isoformat()}
-            for quote in batch.quotes
-            if quote.symbol not in existing_stocks
+            {"symbol": item.quote.symbol, "name": item.quote.name or item.quote.symbol, "updated_at": attempted_at.isoformat()}
+            for item in batch.quotes
+            if item.quote.symbol not in existing_stocks
         ]
         if missing_stocks:
             repo.upsert("stocks", missing_stocks, "symbol")
@@ -212,24 +259,24 @@ def _refresh(config: Config, repo: SupabaseRepository) -> int:
             "live_quotes",
             [
                 {
-                    "symbol": quote.symbol,
-                    "price": quote.price,
-                    "previous_close": quote.previous_close,
-                    "change_pct": quote.change_pct,
-                    "open": quote.open,
-                    "high": quote.high,
-                    "low": quote.low,
-                    "volume": quote.volume,
-                    "turnover": quote.turnover,
-                    "source": batch.source,
-                    "source_timestamp": quote.source_timestamp.isoformat() if quote.source_timestamp else None,
-                    "delay_seconds": batch.delay_seconds,
-                    "market_date": quote.source_timestamp.astimezone(CAIRO_TZ).date().isoformat()
-                    if quote.source_timestamp
+                    "symbol": item.quote.symbol,
+                    "price": item.quote.price,
+                    "previous_close": item.quote.previous_close,
+                    "change_pct": item.quote.change_pct,
+                    "open": item.quote.open,
+                    "high": item.quote.high,
+                    "low": item.quote.low,
+                    "volume": item.quote.volume,
+                    "turnover": item.quote.turnover,
+                    "source": item.source,
+                    "source_timestamp": item.quote.source_timestamp.isoformat() if item.quote.source_timestamp else None,
+                    "delay_seconds": item.delay_seconds,
+                    "market_date": item.quote.source_timestamp.astimezone(CAIRO_TZ).date().isoformat()
+                    if item.quote.source_timestamp
                     else None,
                     "fetched_at": fetched_at.isoformat(),
                 }
-                for quote in batch.quotes
+                for item in batch.quotes
             ],
             "symbol",
         )

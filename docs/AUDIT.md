@@ -67,7 +67,7 @@ No `supabase/migrations/` directory exists. No test files (TS or Python) exist.
    - `_resolve_trade_date()` prefers Yahoo's latest bar date, else any provider's; calls `bind_trade_date()` on deferred quote-only providers (Borsa), then fetches their history.
    - Records `source_rows`, `source_errors`, `sources_by_symbol`.
 4. **Persistence** — `engine/run.py` upserts `data_source_status`, `stocks`, and raw `price_bars` per source, then writes `source = "aggregated"` bars.
-5. **Aggregation** — `aggregate_bars()` takes first `open`, max `high`, min `low`, median `close`, sum `volume` per `(symbol, trade_date)`.
+5. **Aggregation** — `aggregate_bars()` takes first `open`, max `high`, min `low`, median `close`, max reported `volume` per `(symbol, trade_date)` so duplicate provider snapshots are not summed.
 6. **Features** — `build_features()` produces 19 indicators; NaNs/Infs are replaced with `0.0`.
 7. **Model** — `train_model()` builds labels (`forward_return >= target_pct` after `horizon_days`), sorts by date, splits 80/20 by row position, fits `XGBClassifier`; falls back to `HeuristicModel` if <150 rows or one class. Logs `validation_accuracy` into `analysis_runs.notes`.
 8. **Ranking** — for each symbol, `predict_probability()` + `build_plan()` produce `TradePlan`; sorted by `score` desc; top `EGX_TOP_N` (10) inserted into `recommendations`.

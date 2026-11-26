@@ -17,7 +17,7 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -43,6 +43,7 @@ jobs:
           EGX_YAHOO_QUOTE_ENABLED: ${{ secrets.EGX_YAHOO_QUOTE_ENABLED || 'true' }}
           EGX_YAHOO_HOSTS: ${{ secrets.EGX_YAHOO_HOSTS || 'query1.finance.yahoo.com,query2.finance.yahoo.com' }}
           EGX_YAHOO_QUOTE_DELAY_SECONDS: ${{ secrets.EGX_YAHOO_QUOTE_DELAY_SECONDS || '1' }}
+          EGX_MARKET_UNIVERSE_SIZE: ${{ secrets.EGX_MARKET_UNIVERSE_SIZE || '250' }}
           EGX_QUOTE_FORCE_REFRESH: ${{ github.event_name == 'workflow_dispatch' }}
           EGID_ENABLED: ${{ secrets.EGID_ENABLED || 'true' }}
           EGID_USERNAME: ${{ secrets.EGID_USERNAME }}

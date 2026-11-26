@@ -108,6 +108,39 @@ def _run(config: Config, repo: SupabaseRepository) -> int:
                 f"minimum is {config.universe.minimum_universe_size}"
             )
 
+        repo.upsert(
+            "stocks",
+            [
+                {
+                    "symbol": entry.symbol,
+                    "name": entry.name,
+                    "sector": entry.sector,
+                    "is_active": entry.symbol in eligible,
+                    "updated_at": _now(),
+                }
+                for entry in collected.universe.values()
+            ],
+            "symbol",
+        )
+
+        merged_rows = [
+            {
+                "symbol": symbol,
+                "trade_date": row["trade_date"].date().isoformat(),
+                "open": round(float(row["open"]), 4),
+                "high": round(float(row["high"]), 4),
+                "low": round(float(row["low"]), 4),
+                "close": round(float(row["close"]), 4),
+                "volume": int(row["volume"]),
+                "source": "aggregated",
+                "adjusted": False,
+                "updated_at": _now(),
+            }
+            for symbol, frame in aggregated_frames.items()
+            for _, row in frame.iterrows()
+        ]
+        repo.upsert("price_bars", merged_rows, "symbol,trade_date,source")
+
         as_of = max(frame["trade_date"].max() for frame in eligible.values()).date().isoformat()
         previous_market_date = _last_market_date(repo)
         if previous_market_date and as_of <= previous_market_date:
@@ -192,21 +225,6 @@ def _run(config: Config, repo: SupabaseRepository) -> int:
             "source",
         )
 
-        repo.upsert(
-            "stocks",
-            [
-                {
-                    "symbol": entry.symbol,
-                    "name": entry.name,
-                    "sector": entry.sector,
-                    "is_active": entry.symbol in eligible,
-                    "updated_at": _now(),
-                }
-                for entry in collected.universe.values()
-            ],
-            "symbol",
-        )
-
         for source, by_symbol in cleaned.items():
             rows = [
                 {
@@ -226,24 +244,6 @@ def _run(config: Config, repo: SupabaseRepository) -> int:
             ]
             if rows:
                 repo.upsert("price_bars", rows, "symbol,trade_date,source")
-
-        merged_rows = [
-            {
-                "symbol": symbol,
-                "trade_date": row["trade_date"].date().isoformat(),
-                "open": round(float(row["open"]), 4),
-                "high": round(float(row["high"]), 4),
-                "low": round(float(row["low"]), 4),
-                "close": round(float(row["close"]), 4),
-                "volume": int(row["volume"]),
-                "source": "aggregated",
-                "adjusted": False,
-                "updated_at": _now(),
-            }
-            for symbol, frame in eligible.items()
-            for _, row in frame.iterrows()
-        ]
-        repo.upsert("price_bars", merged_rows, "symbol,trade_date,source")
 
         repo.insert(
             "recommendations",

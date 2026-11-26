@@ -1,5 +1,5 @@
 import { connection } from "next/server";
-import { getSupabaseClient } from "./supabase";
+import { getSupabaseServerClient } from "./supabase";
 import { lastExpectedTradingSession } from "./market-time";
 import type { DashboardData, LiveQuote, MarketRefresh, Recommendation } from "./types";
 
@@ -120,27 +120,11 @@ function buildStats(rows: Recommendation[], analyzed: number | null): DashboardD
   };
 }
 
-function emptyData(): DashboardData {
-  const expected = lastExpectedTradingSession();
-  return {
-    recommendations: [],
-    stats: buildStats([], null),
-    asOf: null,
-    lastRunAt: null,
-    marketDate: null,
-    expectedSession: expected,
-    isStale: true,
-    isEmpty: true,
-    liveQuotes: [],
-    marketRefresh: null,
-  };
-}
-
 export async function getDashboardData(): Promise<DashboardData> {
   await connection();
 
-  const supabase = getSupabaseClient();
-  if (!supabase) return emptyData();
+  const supabase = await getSupabaseServerClient();
+  if (!supabase) throw new Error("Supabase is not configured");
 
   const [recommendationsResult, runResult, quotesResult, refreshResult] = await Promise.all([
     supabase.from("top_recommendations").select("*").limit(10),
@@ -154,14 +138,13 @@ export async function getDashboardData(): Promise<DashboardData> {
     supabase
       .from("data_source_status")
       .select("*")
-      .in("source", ["egid_delayed", "tradingview_delayed", "yahoo_delayed"])
+      .in("source", ["egid_delayed", "tradingview_delayed", "yahoo_delayed", "mixed"])
       .order("updated_at", { ascending: false })
       .limit(1),
   ]);
 
   if (recommendationsResult.error || runResult.error) {
-    console.error("Dashboard Supabase read failed", recommendationsResult.error, runResult.error);
-    return emptyData();
+    throw new Error(`Dashboard Supabase read failed: ${recommendationsResult.error?.message ?? runResult.error?.message}`);
   }
   if (quotesResult.error || refreshResult.error) {
     console.error("Live quote refresh read failed", quotesResult.error, refreshResult.error);

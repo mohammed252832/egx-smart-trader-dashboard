@@ -59,3 +59,46 @@ export type DashboardData = {
   liveQuotes: LiveQuote[];
   marketRefresh: MarketRefresh | null;
 };
+
+export type MarketStock = {
+  symbol: string;
+  name: string;
+  sector: string | null;
+  liquidity_rank: number;
+  liquidity_sessions: number;
+  median_daily_value_egp: number;
+  price: number;
+  previous_close: number | null;
+  change_pct: number | null;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  volume: number;
+  turnover: number | null;
+  effective_market_date: string | null;
+  price_origin: "live_quote" | "daily_close";
+  source: string;
+  source_timestamp: string | null;
+  delay_seconds: number;
+  fetched_at: string | null;
+};
+
+export type MonthlyBar = {
+  month_start: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  sessions: number;
+  first_trade_date: string;
+  last_trade_date: string;
+  sources: string[];
+};
+
+export type StockChartData = {
+  symbol: string;
+  name: string;
+  sector: string | null;
+  bars: MonthlyBar[];
+};

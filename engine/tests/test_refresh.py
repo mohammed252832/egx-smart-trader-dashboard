@@ -8,17 +8,19 @@ from unittest.mock import Mock, patch
 
 from engine.providers.base import Quote, QuoteBatch
 from engine.providers.egid_provider import CAIRO_TZ
-from engine.refresh import _record_failure, _refresh
+from engine.refresh import _record_failure, _refresh, _tracked_symbols
 
 
 class FakeRepository:
     def __init__(self) -> None:
         self.upserts: list[tuple[str, list[dict], str]] = []
-        self.recommendations = [{"symbol": "COMI"}, {"symbol": "FWRY"}]
+        self.market = [{"symbol": "COMI"}, {"symbol": "FWRY"}]
+        self.select_calls: list[tuple[str, str, dict]] = []
 
     def select(self, table: str, columns: str = "*", params=None) -> list[dict]:
-        if table == "top_recommendations":
-            return self.recommendations
+        self.select_calls.append((table, columns, params or {}))
+        if table == "latest_market":
+            return self.market
         if table == "stocks":
             return [{"symbol": "COMI", "name": "Commercial International Bank"}]
         if table == "data_source_status":
@@ -41,6 +43,7 @@ class FakeRepository:
 def make_config(**overrides) -> SimpleNamespace:
     values = {
         "top_n": 2,
+        "market_universe_size": 250,
         "universe": SimpleNamespace(seed_symbols=("ABUK", "COMI", "FWRY")),
         "egid_enabled": True,
         "egid_username": "",
@@ -168,17 +171,70 @@ class RefreshTests(unittest.TestCase):
         with patch.dict(os.environ, {"EGX_QUOTE_FORCE_REFRESH": "true"}), patch(
             "engine.refresh.TradingViewQuoteProvider", return_value=provider
         ):
-            result = _refresh(make_config(), repo)
+            result = _refresh(make_config(yahoo_quote_enabled=False), repo)
 
         self.assertEqual(result, 0)
         status = next(item for item in repo.upserts if item[0] == "data_source_status")[1][0]
         self.assertEqual(status["rows_written"], 1)
         self.assertIn("missing FWRY", status["last_error"])
 
-    def test_seed_symbols_are_used_before_recommendations_exist(self) -> None:
+    def test_partial_provider_response_is_completed_by_the_next_source(self) -> None:
+        tradingview = named_provider(
+            "tradingview_delayed",
+            make_batch(symbols=("COMI",), errors=("TradingView missing FWRY",)),
+        )
+        yahoo = named_provider(
+            "yahoo_delayed",
+            make_batch("yahoo_delayed", symbols=("FWRY",), delay_seconds=86_400),
+        )
+        repo = FakeRepository()
+
+        with patch.dict(os.environ, {"EGX_QUOTE_FORCE_REFRESH": "true"}), patch(
+            "engine.refresh.TradingViewQuoteProvider", return_value=tradingview
+        ), patch("engine.refresh.YahooQuoteProvider", return_value=yahoo):
+            result = _refresh(make_config(), repo)
+
+        self.assertEqual(result, 0)
+        yahoo.fetch_quotes.assert_called_once_with(("FWRY",))
+        quote_rows = next(item for item in repo.upserts if item[0] == "live_quotes")[1]
+        self.assertEqual(
+            {row["symbol"]: row["source"] for row in quote_rows},
+            {"COMI": "tradingview_delayed", "FWRY": "yahoo_delayed"},
+        )
+        status = next(item for item in repo.upserts if item[0] == "data_source_status")[1][0]
+        self.assertEqual(status["source"], "mixed")
+        self.assertEqual(status["rows_written"], 2)
+        self.assertIn("missing FWRY", status["last_error"])
+
+    def test_liquid_market_universe_is_used_instead_of_top_recommendations(self) -> None:
+        repo = FakeRepository()
+        repo.market = [{"symbol": "ABUK"}, {"symbol": "COMI"}, {"symbol": "FWRY"}]
+        config = make_config(top_n=1, market_universe_size=2)
+
+        symbols = _tracked_symbols(config, repo)
+
+        self.assertEqual(symbols, ("ABUK", "COMI"))
+        self.assertEqual(
+            repo.select_calls[0],
+            ("latest_market", "symbol", {"order": "liquidity_rank.asc", "limit": 2}),
+        )
+
+    def test_seed_symbols_are_used_before_latest_market_exists(self) -> None:
         provider = named_provider("tradingview_delayed", make_batch(symbols=("ABUK", "COMI")))
         repo = FakeRepository()
-        repo.recommendations = []
+        repo.market = []
+
+        with patch.dict(os.environ, {"EGX_QUOTE_FORCE_REFRESH": "true"}), patch(
+            "engine.refresh.TradingViewQuoteProvider", return_value=provider
+        ):
+            result = _refresh(make_config(market_universe_size=2), repo)
+
+        self.assertEqual(result, 0)
+        provider.fetch_quotes.assert_called_once_with(("ABUK", "COMI"))
+
+    def test_market_universe_defaults_to_250_and_is_configurable(self) -> None:
+        provider = named_provider("tradingview_delayed", make_batch())
+        repo = FakeRepository()
 
         with patch.dict(os.environ, {"EGX_QUOTE_FORCE_REFRESH": "true"}), patch(
             "engine.refresh.TradingViewQuoteProvider", return_value=provider
@@ -186,7 +242,8 @@ class RefreshTests(unittest.TestCase):
             result = _refresh(make_config(), repo)
 
         self.assertEqual(result, 0)
-        provider.fetch_quotes.assert_called_once_with(("ABUK", "COMI"))
+        market_call = next(call for call in repo.select_calls if call[0] == "latest_market")
+        self.assertEqual(market_call[2]["limit"], 250)
 
     def test_total_failure_keeps_last_success_timestamp(self) -> None:
         tradingview = named_provider("tradingview_delayed", error=RuntimeError("scanner blocked"))

@@ -51,6 +51,15 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.yahoo_quote_delay_seconds, 1.0)
         self.assertEqual(config.egid_username, "")
         self.assertEqual(config.egid_password, "")
+        self.assertEqual(config.market_universe_size, 250)
+
+    def test_market_universe_size_is_configurable_and_bounded(self) -> None:
+        with patch.dict(os.environ, {"EGX_MARKET_UNIVERSE_SIZE": "300"}, clear=True):
+            self.assertEqual(Config.from_env().market_universe_size, 300)
+        with patch.dict(os.environ, {"EGX_MARKET_UNIVERSE_SIZE": "9999"}, clear=True):
+            self.assertEqual(Config.from_env().market_universe_size, 500)
+        with patch.dict(os.environ, {"EGX_MARKET_UNIVERSE_SIZE": "invalid"}, clear=True):
+            self.assertEqual(Config.from_env().market_universe_size, 250)
 
     def test_generic_http_provider_cannot_shadow_borsa_provider(self) -> None:
         provider = HttpProvider(ProviderConfig(prefix="BORSA"))
