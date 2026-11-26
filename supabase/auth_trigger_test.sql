@@ -23,6 +23,10 @@ begin
   values ('wael@wm.com', '', '{}'::jsonb);
 
   update auth_trigger_test
+  set raw_app_meta_data = '{}'::jsonb
+  where email = 'wael@wm.com';
+
+  update auth_trigger_test
   set raw_app_meta_data = '{"role":"member"}'::jsonb
   where email = 'wael@wm.com';
 
