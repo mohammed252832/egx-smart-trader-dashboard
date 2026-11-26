@@ -209,7 +209,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if new.email_change is not null then
+  if nullif(new.email_change, '') is not null then
     raise exception 'Email changes are disabled for dashboard accounts'
       using errcode = 'check_violation';
   end if;
