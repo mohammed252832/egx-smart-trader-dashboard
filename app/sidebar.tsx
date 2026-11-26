@@ -26,7 +26,7 @@ export function Sidebar({ email }: { email: string }) {
   const open = openPath === pathname;
 
   return (
-    <aside dir="rtl" className="fixed left-5 top-5 z-50 flex flex-col-reverse items-start print:hidden">
+    <aside dir="rtl" className="fixed left-5 top-5 z-50 flex flex-col-reverse items-end print:hidden">
       {open && (
         <div id="floating-navigation" className="mt-3 w-72 overflow-hidden rounded-2xl border border-white/10 bg-[#111c30]/95 shadow-2xl shadow-black/50 backdrop-blur">
           <nav className="p-2" aria-label="القائمة الرئيسية">
