@@ -228,7 +228,12 @@ begin
       using errcode = 'check_violation';
   end if;
 
-  if coalesce(new.raw_app_meta_data ->> 'role', '') <> 'member' then
+  if coalesce(new.raw_app_meta_data ->> 'role', '') not in ('', 'member') then
+    raise exception 'Dashboard accounts must use the member role'
+      using errcode = 'check_violation';
+  end if;
+
+  if tg_op = 'UPDATE' and coalesce(new.raw_app_meta_data ->> 'role', '') <> 'member' then
     raise exception 'Dashboard accounts must be provisioned by an administrator'
       using errcode = 'check_violation';
   end if;

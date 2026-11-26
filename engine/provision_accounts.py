@@ -76,7 +76,7 @@ def provision_accounts(supabase_url: str, secret_key: str) -> tuple[int, int]:
         for email in ALLOWED_ACCOUNT_EMAILS:
             user = by_email.get(email)
             if user is None:
-                _request(
+                created_user = _request(
                     session,
                     "POST",
                     f"{base_url}/admin/users",
@@ -88,6 +88,17 @@ def provision_accounts(supabase_url: str, secret_key: str) -> tuple[int, int]:
                         "app_metadata": {"role": "member"},
                     },
                 )
+                metadata = created_user.get("app_metadata")
+                metadata = dict(metadata) if isinstance(metadata, dict) else {}
+                if metadata.get("role") != "member":
+                    metadata["role"] = "member"
+                    _request(
+                        session,
+                        "PUT",
+                        f"{base_url}/admin/users/{created_user['id']}",
+                        headers=headers,
+                        json={"app_metadata": metadata},
+                    )
                 created += 1
                 print(f"Created confirmed dashboard account: {email}")
                 continue
