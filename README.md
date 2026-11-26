@@ -94,7 +94,8 @@ VERCEL_DEPLOY_HOOK          # اختياري؛ النشر التلقائي من 
 
 بعد البحث في المصادر تبيّن أن:
 
-- `https://ticker.egidegypt.com/api/Feed/GetAllMarketWatchNames` متاح للعموم ويعيد قائمة EGID الرسمية للأسهم (308 رمزاً بصيغة Reuters `.CA`). باقي endpoints في Swagger تتطلب Bearer token من `/api/Settings/GetToken` (بيانات دخول EGID).
+- [الموقع الرسمي للبورصة المصرية EGID](https://www.egidegypt.com/index.html) هو المرجع الرسمي، وقائمة الرموز العامة متاحة من `https://ticker.egidegypt.com/api/Feed/GetAllMarketWatchNames` (308 رموزاً بصيغة Reuters `.CA`). باقي endpoints في Swagger تتطلب Bearer token من `/api/Settings/GetToken` (بيانات دخول EGID).
+- صفحة الأسعار العامة داخل موقع EGID لا تُستخدم كمصدر للأسهم لأنها لا توفر تاريخ جلسة موثوقاً أو تغطية أسهم فردية متحققة، وتحتوي قيماً ثابتة للمؤشرات كاحتياطي. التحديث الرسمي يعتمد على Delayed Feed بعد إضافة بيانات الدخول.
 - صفحة `https://egx.com.eg/en/infograph.aspx` محمية بتحدّي F5 ولا تعرض JSON يمكن استخدامه مباشرة.
 - Yahoo Finance يوفّر شموعاً يومية حقيقية لرموز EGX بصيغة `.CA` (مثل `FWRY.CA`) بدون مفتاح.
 
@@ -131,7 +132,7 @@ EGX_BORSA_API_KEY=        # اختياري، لنسخة مستضافة ذاتي�
 
 - الوضع المجاني لا يحتاج أي مفتاح: يستخدم [TradingView public EGX scanner](https://www.tradingview.com/) لجلب أسعار متأخرة للأسهم المتابعة فقط، عادةً بتأخير 15 دقيقة. هذا endpoint عام وغير رسمي، بلا ضمان خدمة أو SLA، وقد يتغير أو يُحظر؛ لا نعتبره بيانات لحظية.
 - عند تعذّر TradingView أو نقص رموز منه يكمل المحرك الرموز الناقصة من Yahoo Finance، مع حفظ مصدر كل سهم على حدة. Yahoo يعرض بوضوح كـ **آخر إغلاق يومي** وليس كتحديث أثناء الجلسة، ويظل أيضاً مصدر التاريخ اليومي للتحليل.
-- EGID اختياري: إذا أضفت `EGID_USERNAME` و`EGID_PASSWORD` يصبح المصدر الأول تلقائياً، مع استكمال الرموز الناقصة من TradingView ثم Yahoo. `EGID_DELAY_SECONDS=900` هو الافتراضي.
+- EGID اختياري: إذا أضفت `EGID_USERNAME` و`EGID_PASSWORD` في GitHub Actions Secrets يصبح المصدر الأول تلقائياً، مع استكمال الرموز الناقصة من TradingView ثم Yahoo. `EGID_BASE_URL=https://ticker.egidegypt.com` و`EGID_DELAY_SECONDS=900` هما الافتراضييان. بعد إضافتهما شغّل workflow يدوياً وتحقق من ظهور `egid_delayed` في اللوحة.
 - الرموز هي أعلى `EGX_MARKET_UNIVERSE_SIZE` سهماً نشطةً في آخر جلسة متاحة، حسب وسيط قيمة تداول آخر 20 جلسة من عرض `latest_market` (الافتراضي 250)؛ وقبل إنشاء العرض تُستخدم أول رموز قائمة التحليل في `engine/config/universe.json`.
 - شغّل `supabase/migrations/0003_live_quotes.sql`. في المشاريع الجديدة قد تحتاج إلى تفعيل جدول `live_quotes` من **Integrations → Data API → Exposed tables**.
 - workflow الملف `.github/workflows/refresh.yml` مجدول كل 10 دقائق خلال نافذة تغطي جلسة EGX، ويتخطى التنفيذ خارج الساعة 10:00–15:00 بتوقيت القاهرة. زر **Run workflow** ينفّذ تحديثاً يدوياً حتى خارج الجلسة. مواعيد GitHub Actions قد تتأخر حسب ضغط الخدمة.

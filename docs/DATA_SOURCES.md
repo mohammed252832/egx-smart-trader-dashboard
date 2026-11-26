@@ -35,10 +35,12 @@ No credentials were used and no private data was accessed. Prices/licensing can 
 - Decision: use as the free 10-minute source with a configured 15-minute delay. Missing symbols are requested from the next source and reported as partial warnings; a failed scanner falls back to Yahoo daily bars. Never label these quotes real-time.
 
 ### 3. EGID (`ticker.egidegypt.com`)
+- Official reference: [EGID corporate website](https://www.egidegypt.com/index.html).
 - Public: `/api/Feed/GetAllMarketWatchNames` returns the official EGX symbol list (`.CA` Reuters codes, ~308 names).
 - Swagger v1 lists authenticated `DelayedFeed` endpoints: `getAllMarketWatch`, `getMarketWatchForSymbolList`, `GetSymbolHistory`, `GetSymbolHistories`, `getMarketStatus`, sector/index history and market summary.
 - Authentication uses `POST /api/Settings/GetToken` with `Username` and `Password`, then a Bearer token. The quote refresher uses one bulk `getAllMarketWatch` request every 10 minutes during EGX hours.
 - `GetSymbolHistories` accepts `SymbolCode`, `FromDate`, `ToDate`, `Skip`, `Take`, which maps cleanly to the generic provider placeholders `{symbol}`, `{start}`, `{end}`.
+- The corporate homepage loads a public ticker from `https://feed.egitdns.net/api/DelayedFeed/getTickerInfo`. A pre-market request on 2026-11-26 returned `[]`; the script also contains hard-coded index fallbacks and the payload has no verified individual-stock coverage or reliable trade timestamp. It is not wired into production prices.
 - Decision: EGID is an optional official upgrade and takes priority only when both credentials are configured. TradingView is the default free intraday source, Yahoo remains the daily-history backbone, and Borsa remains metadata/cross-check only. If all quote sources fail, the dashboard keeps the last successful quotes and shows an error instead of claiming a fresh update.
 
 ### 4. Borsa
