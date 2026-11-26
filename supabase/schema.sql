@@ -233,7 +233,10 @@ begin
       using errcode = 'check_violation';
   end if;
 
-  if tg_op = 'UPDATE' and coalesce(new.raw_app_meta_data ->> 'role', '') <> 'member' then
+  -- Supabase Auth updates the bootstrap row before applying app_metadata.
+  if tg_op = 'UPDATE'
+    and coalesce(new.raw_app_meta_data ->> 'role', '') <> 'member'
+    and coalesce(old.raw_app_meta_data ->> 'role', '') <> '' then
     raise exception 'Dashboard accounts must be provisioned by an administrator'
       using errcode = 'check_violation';
   end if;
