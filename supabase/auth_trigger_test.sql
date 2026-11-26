@@ -19,6 +19,13 @@ begin
   insert into auth_trigger_test (email, email_change, raw_app_meta_data)
   values ('mohammed.fathi2532@wm.com', null, '{"role":"member"}'::jsonb);
 
+  insert into auth_trigger_test (email, email_change, raw_app_meta_data)
+  values ('wael@wm.com', '', '{}'::jsonb);
+
+  update auth_trigger_test
+  set raw_app_meta_data = '{"role":"member"}'::jsonb
+  where email = 'wael@wm.com';
+
   begin
     insert into auth_trigger_test (email, email_change, raw_app_meta_data)
     values ('wael@wm.com', 'replacement@example.com', '{"role":"member"}'::jsonb);
@@ -37,8 +44,17 @@ begin
 
   begin
     insert into auth_trigger_test (email, email_change, raw_app_meta_data)
-    values ('wael@wm.com', '', '{}'::jsonb);
-    raise exception 'Expected an account without the member role to be rejected';
+    values ('wael@wm.com', '', '{"role":"admin"}'::jsonb);
+    raise exception 'Expected a non-member role to be rejected';
+  exception when check_violation then
+    null;
+  end;
+
+  begin
+    update auth_trigger_test
+    set raw_app_meta_data = '{}'::jsonb
+    where email = 'kigobigo11@wm.com';
+    raise exception 'Expected an update without the member role to be rejected';
   exception when check_violation then
     null;
   end;
@@ -52,7 +68,7 @@ begin
     null;
   end;
 
-  if (select count(*) from auth_trigger_test) <> 2 then
+  if (select count(*) from auth_trigger_test) <> 3 then
     raise exception 'Unexpected number of accepted auth trigger test rows';
   end if;
 end;

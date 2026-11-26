@@ -12,10 +12,10 @@ def response(payload: dict, status: int = 200) -> Mock:
     return result
 
 
-def session_for(users: list[dict]) -> Mock:
+def session_for(users: list[dict], created_user: dict | None = None) -> Mock:
     session = Mock()
     session.request.side_effect = lambda method, url, **kwargs: response(
-        {"users": users} if method == "GET" else {"id": "new-user"}
+        {"users": users} if method == "GET" else created_user or {"id": "new-user"}
     )
     session.__enter__ = Mock(return_value=session)
     session.__exit__ = Mock(return_value=False)
@@ -47,7 +47,24 @@ class ProvisionAccountsTests(unittest.TestCase):
             self.assertTrue(payload["email_confirm"])
             self.assertEqual(payload["app_metadata"], {"role": "member"})
             self.assertGreaterEqual(len(payload["password"]), 32)
+        puts = [call for call in session.request.call_args_list if call.args[0] == "PUT"]
+        self.assertEqual(len(puts), 2)
+        for call in puts:
+            self.assertEqual(call.kwargs["json"], {"app_metadata": {"role": "member"}})
+            self.assertNotIn("password", call.kwargs["json"])
         self.assertFalse(any(call.args[0] == "DELETE" for call in session.request.call_args_list))
+
+    def test_skips_role_update_when_admin_create_already_returns_member(self) -> None:
+        session = session_for(
+            [],
+            created_user={"id": "new-user", "app_metadata": {"role": "member"}},
+        )
+
+        with patch("engine.provision_accounts.requests.Session", return_value=session):
+            created, updated = provision_accounts("https://project.supabase.co", "sb_secret_test")
+
+        self.assertEqual((created, updated), (3, 0))
+        self.assertFalse(any(call.args[0] == "PUT" for call in session.request.call_args_list))
 
     def test_updates_role_without_resetting_an_existing_password(self) -> None:
         existing = {

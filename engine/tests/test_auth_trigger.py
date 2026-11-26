@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-MIGRATION = ROOT / "supabase/migrations/20261126010647_fix_auth_user_empty_email_change.sql"
+MIGRATION = ROOT / "supabase/migrations/20261126014822_allow_auth_user_bootstrap_without_role.sql"
 SCHEMA = ROOT / "supabase/schema.sql"
 
 
@@ -22,11 +22,12 @@ class AuthTriggerMigrationTests(unittest.TestCase):
                 self.assertIn("if nullif(new.email_change, '') is not null then", function)
                 self.assertNotIn("if new.email_change is not null then", function)
 
-    def test_signup_and_email_reassignment_guards_remain(self) -> None:
+    def test_bootstrap_and_email_reassignment_guards_remain(self) -> None:
         function = trigger_function(MIGRATION.read_text(encoding="utf-8"))
         self.assertIn("if tg_op = 'UPDATE' and new.email is distinct from old.email then", function)
         self.assertIn("where email = lower(new.email)", function)
-        self.assertIn("coalesce(new.raw_app_meta_data ->> 'role', '') <> 'member'", function)
+        self.assertIn("not in ('', 'member')", function)
+        self.assertIn("if tg_op = 'UPDATE' and coalesce(new.raw_app_meta_data ->> 'role', '') <> 'member' then", function)
 
     def test_fresh_schema_matches_follow_up_migration(self) -> None:
         self.assertEqual(
