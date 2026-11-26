@@ -11,6 +11,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - "next.config.ts"
+      - "proxy.ts"
       - ".github/workflows/deploy.yml"
 
 permissions:

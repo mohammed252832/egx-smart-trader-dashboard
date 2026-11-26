@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AutoRefresh } from "@/app/auto-refresh";
 import { getDashboardData } from "@/lib/data";
 import { formatCairoDateTime } from "@/lib/market-time";
@@ -17,6 +18,7 @@ function quoteSourceLabel(source: string | null | undefined) {
   if (source === "egid_delayed") return "EGID الرسمي";
   if (source === "tradingview_delayed") return "TradingView (غير رسمي)";
   if (source === "yahoo_delayed") return "Yahoo Finance";
+  if (source === "mixed") return "مصادر أسعار مجمعة";
   return "مصدر أسعار متأخر";
 }
 
@@ -39,7 +41,9 @@ function RecommendationRow({ row, quote }: { row: Recommendation; quote?: LiveQu
   return (
     <tr className="border-b border-white/5 align-top">
       <td className="p-4">
-        <p className="font-bold">{row.symbol}</p>
+        <Link href={`/stocks/${row.symbol}`} className="font-bold text-emerald-300 hover:text-emerald-200">
+          {row.symbol}
+        </Link>
         <p className="mt-1 text-xs text-gray-500">{row.name}</p>
       </td>
       <td className="p-4 text-gray-300">

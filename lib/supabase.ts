@@ -1,20 +1,30 @@
-import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-type SupabaseClient = ReturnType<typeof createClient>;
-
-let client: SupabaseClient | null = null;
-
-export function getSupabaseClient(): SupabaseClient | null {
+export async function getSupabaseServerClient(): Promise<SupabaseClient | null> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
   if (!url || !key) return null;
 
-  if (!client) {
-    client = createClient(url, key, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-  }
-
-  return client;
+  const cookieStore = await cookies();
+  return createServerClient(url, key, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          for (const { name, value, options } of cookiesToSet) {
+            cookieStore.set(name, value, options);
+          }
+        } catch (error) {
+          // The proxy owns refresh writes during Server Component rendering.
+          if (!(error instanceof Error && error.message.startsWith("Cookies can only be modified"))) {
+            throw error;
+          }
+        }
+      },
+    },
+  });
 }

@@ -249,6 +249,7 @@ class Config:
     history_days: int
     horizon_days: int
     top_n: int
+    market_universe_size: int
     target_pct: float
     stop_atr: float
     target_atr: float
@@ -288,6 +289,7 @@ class Config:
             history_days=max(120, _get_int("EGX_HISTORY_DAYS", 400)),
             horizon_days=max(1, _get_int("EGX_HORIZON_DAYS", 3)),
             top_n=max(1, _get_int("EGX_TOP_N", 10)),
+            market_universe_size=max(1, min(500, _get_int("EGX_MARKET_UNIVERSE_SIZE", 250))),
             target_pct=signals.model.label_target_pct,
             stop_atr=signals.risk.stop_atr_multiplier,
             target_atr=signals.risk.target_atr_multiplier,

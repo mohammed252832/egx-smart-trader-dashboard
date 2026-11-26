@@ -175,7 +175,7 @@ def aggregate_bars(raw_bars: dict[str, dict[str, list[Bar]]]) -> dict[str, pd.Da
                 high=("high", "max"),
                 low=("low", "min"),
                 close=("close", "median"),
-                volume=("volume", "sum"),
+                volume=("volume", "max"),
             )
             .sort_values("trade_date")
             .reset_index(drop=True)

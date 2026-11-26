@@ -66,6 +66,22 @@ class TradingViewProviderTests(unittest.TestCase):
         self.assertEqual(len(batch.errors), 1)
         self.assertIn("FWRY", batch.errors[0])
 
+    def test_250_symbols_are_split_into_three_default_chunks(self) -> None:
+        self.provider = TradingViewQuoteProvider(chunk_size=100)
+        symbols = tuple(f"SYM{index}" for index in range(250))
+        self.provider.session.post = Mock(
+            side_effect=lambda *args, **kwargs: self.response([
+                {"s": f"EGX:{symbol}", "d": [symbol, 25.1] + [None] * (len(COLUMNS) - 2)}
+                for symbol in kwargs["json"]["symbols"]["tickers"]
+            ])
+        )
+
+        batch = self.provider.fetch_quotes(symbols)
+
+        self.assertEqual(self.provider.session.post.call_count, 3)
+        self.assertEqual(len(batch.quotes), 250)
+        self.assertEqual(batch.errors, ())
+
     def test_no_usable_quotes_fail_loudly(self) -> None:
         self.provider.session.post = Mock(return_value=self.response([]))
 
