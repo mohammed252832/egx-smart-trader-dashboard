@@ -86,6 +86,61 @@ class ProvisionAccountsTests(unittest.TestCase):
         )
         self.assertNotIn("password", put.kwargs["json"])
 
+    def test_sets_shared_password_for_existing_accounts_without_recovery_email(self) -> None:
+        users = [
+            {
+                "id": f"user-{index}",
+                "email": email,
+                "email_confirmed_at": "2026-11-25T10:00:00Z",
+                "app_metadata": {"role": "member"},
+            }
+            for index, email in enumerate(ALLOWED_ACCOUNT_EMAILS)
+        ]
+        session = session_for(users)
+
+        with patch("engine.provision_accounts.requests.Session", return_value=session):
+            created, updated = provision_accounts(
+                "https://project.supabase.co",
+                "sb_secret_test",
+                shared_password="shared-test-password",
+            )
+
+        self.assertEqual((created, updated), (0, 3))
+        puts = [call for call in session.request.call_args_list if call.args[0] == "PUT"]
+        self.assertEqual(len(puts), 3)
+        for call in puts:
+            self.assertEqual(call.kwargs["json"], {"password": "shared-test-password"})
+            self.assertNotIn("recover", call.args[1])
+        self.assertFalse(any(call.args[0] == "POST" for call in session.request.call_args_list))
+
+    def test_uses_shared_password_for_missing_accounts(self) -> None:
+        session = session_for(
+            [],
+            created_user={"id": "new-user", "app_metadata": {"role": "member"}},
+        )
+
+        with patch("engine.provision_accounts.requests.Session", return_value=session):
+            created, updated = provision_accounts(
+                "https://project.supabase.co",
+                "sb_secret_test",
+                shared_password="shared-test-password",
+            )
+
+        self.assertEqual((created, updated), (3, 0))
+        posts = [call for call in session.request.call_args_list if call.args[0] == "POST"]
+        self.assertEqual(len(posts), 3)
+        for call in posts:
+            self.assertEqual(call.kwargs["json"]["password"], "shared-test-password")
+            self.assertTrue(call.kwargs["json"]["email_confirm"])
+
+    def test_rejects_too_short_shared_password(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "at least 6 characters"):
+            provision_accounts(
+                "https://project.supabase.co",
+                "sb_secret_test",
+                shared_password="short",
+            )
+
     def test_rejects_legacy_keys(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "sb_secret_"):
             provision_accounts("https://project.supabase.co", "legacy-jwt")
