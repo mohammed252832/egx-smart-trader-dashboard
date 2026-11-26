@@ -138,7 +138,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     supabase
       .from("data_source_status")
       .select("*")
-      .in("source", ["egid_delayed", "tradingview_delayed", "yahoo_delayed", "mixed"])
+      .in("source", ["egid_delayed", "egid_public_delayed", "tradingview_delayed", "yahoo_delayed", "mixed"])
       .order("updated_at", { ascending: false })
       .limit(1),
   ]);

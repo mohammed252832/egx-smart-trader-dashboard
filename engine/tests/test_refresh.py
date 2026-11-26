@@ -50,6 +50,9 @@ def make_config(**overrides) -> SimpleNamespace:
         "egid_password": "",
         "egid_base_url": "https://ticker.egidegypt.com",
         "egid_delay_seconds": 900,
+        "egid_public_enabled": False,
+        "egid_public_ticker_url": "https://feed.egitdns.net/api/DelayedFeed/getTickerInfo",
+        "egid_public_delay_seconds": 900,
         "tradingview_enabled": True,
         "tradingview_scanner_url": "https://scanner.tradingview.com/egypt/scan",
         "tradingview_delay_seconds": 900,
@@ -129,6 +132,104 @@ class RefreshTests(unittest.TestCase):
         self.assertEqual(status_table[1][0]["rows_written"], 2)
         self.assertEqual(status_table[1][0]["delay_seconds"], 900)
 
+    def test_public_egid_has_priority_over_tradingview_without_credentials(self) -> None:
+        egid = named_provider("egid_public_delayed", make_batch("egid_public_delayed"))
+        tradingview = named_provider("tradingview_delayed", make_batch())
+        yahoo = named_provider("yahoo_delayed", make_batch("yahoo_delayed", delay_seconds=86_400))
+        repo = FakeRepository()
+
+        with patch.dict(os.environ, {"EGX_QUOTE_FORCE_REFRESH": "true"}), patch(
+            "engine.refresh.EgidPublicQuoteProvider", return_value=egid
+        ), patch("engine.refresh.TradingViewQuoteProvider", return_value=tradingview), patch(
+            "engine.refresh.YahooQuoteProvider", return_value=yahoo
+        ):
+            result = _refresh(make_config(egid_public_enabled=True), repo)
+
+        self.assertEqual(result, 0)
+        egid.fetch_quotes.assert_called_once_with(("COMI", "FWRY"))
+        tradingview.fetch_quotes.assert_not_called()
+        yahoo.fetch_quotes.assert_not_called()
+        status = next(item for item in repo.upserts if item[0] == "data_source_status")[1][0]
+        self.assertEqual(status["source"], "egid_public_delayed")
+        self.assertEqual(status["market_date"], "2026-11-24")
+        self.assertEqual(status["source_timestamp"], "2026-11-24T12:05:00+02:00")
+        self.assertEqual(status["delay_seconds"], 900)
+
+    def test_public_egid_failure_falls_back_to_tradingview(self) -> None:
+        egid = named_provider(
+            "egid_public_delayed",
+            error=RuntimeError("public ticker unavailable"),
+        )
+        tradingview = named_provider("tradingview_delayed", make_batch())
+        repo = FakeRepository()
+
+        with patch.dict(os.environ, {"EGX_QUOTE_FORCE_REFRESH": "true"}), patch(
+            "engine.refresh.EgidPublicQuoteProvider", return_value=egid
+        ), patch("engine.refresh.TradingViewQuoteProvider", return_value=tradingview):
+            result = _refresh(make_config(egid_public_enabled=True), repo)
+
+        self.assertEqual(result, 0)
+        tradingview.fetch_quotes.assert_called_once_with(("COMI", "FWRY"))
+        status = next(item for item in repo.upserts if item[0] == "data_source_status")[1][0]
+        self.assertEqual(status["source"], "tradingview_delayed")
+        self.assertIn("public ticker unavailable", status["last_error"])
+
+    def test_partial_public_egid_response_is_completed_by_tradingview(self) -> None:
+        egid = named_provider(
+            "egid_public_delayed",
+            make_batch(
+                "egid_public_delayed",
+                symbols=("COMI",),
+                errors=("EGID public ticker missing FWRY",),
+            ),
+        )
+        tradingview = named_provider("tradingview_delayed", make_batch(symbols=("FWRY",)))
+        repo = FakeRepository()
+
+        with patch.dict(os.environ, {"EGX_QUOTE_FORCE_REFRESH": "true"}), patch(
+            "engine.refresh.EgidPublicQuoteProvider", return_value=egid
+        ), patch("engine.refresh.TradingViewQuoteProvider", return_value=tradingview):
+            result = _refresh(make_config(egid_public_enabled=True), repo)
+
+        self.assertEqual(result, 0)
+        tradingview.fetch_quotes.assert_called_once_with(("FWRY",))
+        quote_rows = next(item for item in repo.upserts if item[0] == "live_quotes")[1]
+        self.assertEqual(
+            {row["symbol"]: row["source"] for row in quote_rows},
+            {"COMI": "egid_public_delayed", "FWRY": "tradingview_delayed"},
+        )
+        status = next(item for item in repo.upserts if item[0] == "data_source_status")[1][0]
+        self.assertEqual(status["source"], "mixed")
+        self.assertEqual(status["rows_written"], 2)
+        self.assertIn("missing FWRY", status["last_error"])
+
+    def test_partial_public_egid_response_can_use_yahoo_for_remaining_symbols(self) -> None:
+        egid = named_provider(
+            "egid_public_delayed",
+            make_batch("egid_public_delayed", symbols=("COMI",)),
+        )
+        yahoo = named_provider(
+            "yahoo_delayed",
+            make_batch("yahoo_delayed", symbols=("FWRY",), delay_seconds=86_400),
+        )
+        repo = FakeRepository()
+
+        with patch.dict(os.environ, {"EGX_QUOTE_FORCE_REFRESH": "true"}), patch(
+            "engine.refresh.EgidPublicQuoteProvider", return_value=egid
+        ), patch("engine.refresh.YahooQuoteProvider", return_value=yahoo):
+            result = _refresh(
+                make_config(egid_public_enabled=True, tradingview_enabled=False),
+                repo,
+            )
+
+        self.assertEqual(result, 0)
+        yahoo.fetch_quotes.assert_called_once_with(("FWRY",))
+        quote_rows = next(item for item in repo.upserts if item[0] == "live_quotes")[1]
+        self.assertEqual(
+            {row["symbol"]: row["source"] for row in quote_rows},
+            {"COMI": "egid_public_delayed", "FWRY": "yahoo_delayed"},
+        )
+
     def test_tradingview_failure_falls_back_to_yahoo_daily_bars(self) -> None:
         tradingview = named_provider("tradingview_delayed", error=RuntimeError("scanner blocked"))
         yahoo = named_provider("yahoo_delayed", make_batch("yahoo_delayed", delay_seconds=86_400))
@@ -148,17 +249,25 @@ class RefreshTests(unittest.TestCase):
 
     def test_egid_has_priority_when_credentials_exist(self) -> None:
         egid = named_provider("egid_delayed", make_batch("egid_delayed"))
+        public_egid = named_provider("egid_public_delayed", make_batch("egid_public_delayed"))
         tradingview = named_provider("tradingview_delayed", make_batch())
         repo = FakeRepository()
-        config = make_config(egid_username="user", egid_password="secret")
+        config = make_config(
+            egid_username="user",
+            egid_password="secret",
+            egid_public_enabled=True,
+        )
 
         with patch.dict(os.environ, {"EGX_QUOTE_FORCE_REFRESH": "true"}), patch(
             "engine.refresh.EgidQuoteProvider", return_value=egid
-        ), patch("engine.refresh.TradingViewQuoteProvider", return_value=tradingview):
+        ), patch("engine.refresh.EgidPublicQuoteProvider", return_value=public_egid), patch(
+            "engine.refresh.TradingViewQuoteProvider", return_value=tradingview
+        ):
             result = _refresh(config, repo)
 
         self.assertEqual(result, 0)
         egid.fetch_quotes.assert_called_once_with(("COMI", "FWRY"))
+        public_egid.fetch_quotes.assert_not_called()
         tradingview.fetch_quotes.assert_not_called()
         status = next(item for item in repo.upserts if item[0] == "data_source_status")[1][0]
         self.assertEqual(status["source"], "egid_delayed")

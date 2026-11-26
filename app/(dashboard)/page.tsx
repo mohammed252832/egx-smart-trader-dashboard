@@ -16,6 +16,7 @@ const percent = (value: number) => `${money(value)}%`;
 
 function quoteSourceLabel(source: string | null | undefined) {
   if (source === "egid_delayed") return "EGID الرسمي";
+  if (source === "egid_public_delayed") return "EGID الرسمي (عام)";
   if (source === "tradingview_delayed") return "TradingView (غير رسمي)";
   if (source === "yahoo_delayed") return "Yahoo Finance";
   if (source === "mixed") return "مصادر أسعار مجمعة";

@@ -8,8 +8,9 @@ No credentials were used and no private data was accessed. Prices/licensing can 
 | Source | Coverage | Auth | Cost | Daily history | Live/same-day | Integration status |
 | --- | --- | --- | --- | --- | --- | --- |
 | Yahoo Finance `.CA` | Full public EGID list configured; history coverage varies by symbol | None (unofficial) | Free | Yes, `range=2y` | Daily bars only in free quote mode | **Active** — history backbone and daily quote fallback |
-| TradingView public EGX scanner | Tested liquid EGX names, including COMI/FWRY/ABUK | None (unofficial) | Free | No history endpoint used | Delayed, configured as 15 min | **Active** — credential-free 10-minute quote refresh |
-| EGID official feed | Official EGX ticker list and delayed market watch | Username/password for feed | Licensed feed | Feed has `GetSymbolHistories` | Delayed, usually 15 min | **Optional** — takes priority when credentials exist |
+| TradingView public EGX scanner | Tested liquid EGX names, including COMI/FWRY/ABUK | None (unofficial) | Free | No history endpoint used | Delayed, configured as 15 min | **Active** — unofficial quote fallback |
+| EGID public website ticker | 235 individual EGX stocks verified during market hours | None | Official public website | No history endpoint used | Delayed; configured as 15 min | **Active** — default official quote source |
+| EGID authenticated Delayed Feed | Official EGX ticker list and delayed market watch | Username/password for feed | Licensed feed | Feed has `GetSymbolHistories` | Delayed, usually 15 min | **Optional** — takes priority when credentials exist |
 | Borsa (`borsa.ashh.me`) | 200+ EGX symbols, normalized, sectors | None for demo; BYOK for self-host | MIT software; demo 50 req/day | No history endpoint | Yahoo-derived quotes | **Active** — universe/sector + same-day confirmation |
 | Oanor EGX API | Quotes, screener, EGX30, metadata | `x-oanor-key` | Marketplace key | No | Yes | **Configurable** via generic HTTP provider |
 | EGX.news | 276 listed companies; 1-min + daily since IPO | RapidAPI key / purchased CSV | Free dev tier; CSV `$1/stock`; intraday ~`$1.50–5/day`; WSS `$1,500/mo` | Yes (paid CSV) | Yes (RapidAPI/WSS) | **Configurable** for live quotes; history is CSV delivery, not a polling API |
@@ -32,16 +33,17 @@ No credentials were used and no private data was accessed. Prices/licensing can 
 - A credential-free bulk test on 2026-11-25 returned usable COMI, FWRY and ABUK quotes with source timestamps from the last EGX session.
 - Strengths: one bulk request for the tracked symbols, no API key, same-day delayed prices and source timestamps.
 - Weaknesses: public and unofficial endpoint, no SLA or contractual coverage, rate limits or schema changes are possible, and redistribution/commercial terms must be checked by the operator.
-- Decision: use as the free 10-minute source with a configured 15-minute delay. Missing symbols are requested from the next source and reported as partial warnings; a failed scanner falls back to Yahoo daily bars. Never label these quotes real-time.
+- Decision: retain as the unofficial delayed fallback after the official EGID public ticker, with a configured 15-minute delay. Missing symbols are requested from the next source and reported as partial warnings; a failed scanner falls back to Yahoo daily bars. Never label these quotes real-time.
 
-### 3. EGID (`ticker.egidegypt.com`)
+### 3. EGID public and authenticated feeds
 - Official reference: [EGID corporate website](https://www.egidegypt.com/index.html).
-- Public: `/api/Feed/GetAllMarketWatchNames` returns the official EGX symbol list (`.CA` Reuters codes, ~308 names).
+- Public symbol list: `/api/Feed/GetAllMarketWatchNames` returns the official EGX symbol list (`.CA` Reuters codes, ~308 names).
+- Public ticker: `https://feed.egitdns.net/api/DelayedFeed/getTickerInfo` is loaded by the corporate homepage and requires no credentials. A market-hours request on 2026-11-26 returned 235 individual-stock rows with `Reuters`, `LAST_TRADE_PRICE`, `PREVIOUS_CLOSE`, `OPEN_PRICE`, `HIGH_PRICE`, `LOW_PRICE`, `TOTAL_VOLUME`, `TOTAL_VALUE`, `LAST_CHANGE_PRC`, company names and `LAST_TRADE_DATE`. Example: `RUBX.CA` at 12.16 EGP with source time `2026-11-26T14:29:24`; the parser interprets this timezone-less feed timestamp as Cairo local time.
+- The public ticker can return `[]` outside market hours or omit tracked symbols. Those cases trigger the normal fallback and partial-data warnings. The dashboard labels it `EGID الرسمي (عام)` and configures a 15-minute delay; it never claims real-time delivery, complete coverage or an SLA.
 - Swagger v1 lists authenticated `DelayedFeed` endpoints: `getAllMarketWatch`, `getMarketWatchForSymbolList`, `GetSymbolHistory`, `GetSymbolHistories`, `getMarketStatus`, sector/index history and market summary.
-- Authentication uses `POST /api/Settings/GetToken` with `Username` and `Password`, then a Bearer token. The quote refresher uses one bulk `getAllMarketWatch` request every 10 minutes during EGX hours.
+- Authentication uses `POST /api/Settings/GetToken` with `Username` and `Password`, then a Bearer token. The quote refresher uses one bulk `getAllMarketWatch` request every 10 minutes during EGX hours. Credentials remain GitHub Actions Secrets and are never sent to the browser or committed.
 - `GetSymbolHistories` accepts `SymbolCode`, `FromDate`, `ToDate`, `Skip`, `Take`, which maps cleanly to the generic provider placeholders `{symbol}`, `{start}`, `{end}`.
-- The corporate homepage loads a public ticker from `https://feed.egitdns.net/api/DelayedFeed/getTickerInfo`. A pre-market request on 2026-11-26 returned `[]`; the script also contains hard-coded index fallbacks and the payload has no verified individual-stock coverage or reliable trade timestamp. It is not wired into production prices.
-- Decision: EGID is an optional official upgrade and takes priority only when both credentials are configured. TradingView is the default free intraday source, Yahoo remains the daily-history backbone, and Borsa remains metadata/cross-check only. If all quote sources fail, the dashboard keeps the last successful quotes and shows an error instead of claiming a fresh update.
+- Decision: authenticated EGID takes first priority when both credentials exist; otherwise the credential-free official public ticker is the default delayed source. TradingView follows as an unofficial fallback and Yahoo remains the daily-history backbone and final daily-quote fallback. Borsa remains metadata/cross-check only. If all quote sources fail, the dashboard keeps the last successful quotes and shows an error instead of claiming a fresh update.
 
 ### 4. Borsa
 - OpenAPI: `/v1/health`, `/v1/stocks`, `/v1/quote/{symbol}`, `/v1/quotes`, `/v1/quotes/batch`, `/v1/status`.
@@ -74,14 +76,14 @@ No credentials were used and no private data was accessed. Prices/licensing can 
 
 Daily-history providers implement `Provider.fetch_universe()` and `Provider.fetch_history()`. Sources with no history of their own set `needs_trade_date=True`; the aggregator binds the latest real session date from a history provider before collecting them. This prevents a quote's fetch timestamp from being published as a market date.
 
-The lightweight quote refresher is separate from model training. It reads the liquid `latest_market` universe, limited by `EGX_MARKET_UNIVERSE_SIZE` (default 250), and falls back to the first configured symbols before the first analysis. Provider priority is authenticated EGID when credentials exist, then TradingView delayed scanner, then Yahoo daily bars. A partial response is completed by asking the next provider only for missing symbols; each quote retains its own source, timestamp, configured delay, fetch time and market date in `live_quotes`. `data_source_status` uses `mixed` when more than one provider contributed. Partial failures are warnings; total failures preserve the last successful timestamp and prices.
+The lightweight quote refresher is separate from model training. It reads the liquid `latest_market` universe, limited by `EGX_MARKET_UNIVERSE_SIZE` (default 250), and falls back to the first configured symbols before the first analysis. Provider priority is authenticated EGID when credentials exist, then the official credential-free EGID public ticker, then TradingView delayed scanner, then Yahoo daily bars. A partial response is completed by asking the next provider only for missing symbols; each quote retains its own source, timestamp, configured delay, fetch time and market date in `live_quotes`. `data_source_status` uses `mixed` when more than one provider contributed. Partial failures are warnings; total failures preserve the last successful timestamp and prices.
 
 Generic REST sources are configured with `{PREFIX}_UNIVERSE_URL` / `{PREFIX}_HISTORY_URL`, where `PREFIX` is one of `DATACEDAR`, `EGID`, `BORSA`, `EGX`, `OANOR`, `EGXNEWS`. Templates support `{symbol}`, `{days}`, `{start}`, `{end}`, `{api_key}`. Authentication is header-only: `{PREFIX}_AUTH_HEADER` may be a header name (`x-oanor-key`) or a template (`Authorization: Bearer {token}`), and `{PREFIX}_EXTRA_HEADERS` accepts `Header: value, Header2: value2`. API keys are never placed in query strings because proxies commonly log URLs.
 
 Recommended stack:
-1. TradingView public delayed scanner (credential-free quotes for tracked symbols, refreshed on a 10-minute schedule when GitHub Actions runs).
-2. Yahoo `.CA` daily bars (history backbone and honest daily quote fallback).
-3. EGID authenticated Delayed Feed when licensed (official quote priority and optional second history source).
+1. EGID authenticated Delayed Feed when licensed, otherwise the official EGID public website ticker (delayed quotes refreshed on a 10-minute schedule when GitHub Actions runs).
+2. TradingView public delayed scanner (credential-free unofficial fallback for tracked symbols).
+3. Yahoo `.CA` daily bars (history backbone and honest daily quote fallback).
 4. Borsa self-hosted (universe/sectors, BYOK cross-check).
 5. Oanor or EGX.news RapidAPI only as a licensed secondary quote cross-check.
 

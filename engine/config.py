@@ -43,6 +43,7 @@ def _parse_headers(raw: str) -> dict[str, str]:
 
 DEFAULT_EGID_UNIVERSE_URL = "https://ticker.egidegypt.com/api/Feed/GetAllMarketWatchNames"
 DEFAULT_EGID_BASE_URL = "https://ticker.egidegypt.com"
+DEFAULT_EGID_PUBLIC_TICKER_URL = "https://feed.egitdns.net/api/DelayedFeed/getTickerInfo"
 DEFAULT_TRADINGVIEW_SCANNER_URL = "https://scanner.tradingview.com/egypt/scan"
 DEFAULT_YAHOO_HOSTS = "query1.finance.yahoo.com,query2.finance.yahoo.com"
 DEFAULT_BORSA_BASE_URL = "https://demo.borsa.ashh.me"
@@ -270,6 +271,9 @@ class Config:
     egid_username: str
     egid_password: str
     egid_delay_seconds: int
+    egid_public_enabled: bool
+    egid_public_ticker_url: str
+    egid_public_delay_seconds: int
     tradingview_enabled: bool
     tradingview_scanner_url: str
     tradingview_delay_seconds: int
@@ -325,6 +329,12 @@ class Config:
             egid_username=os.getenv("EGID_USERNAME", "").strip(),
             egid_password=os.getenv("EGID_PASSWORD", ""),
             egid_delay_seconds=max(0, _get_int("EGID_DELAY_SECONDS", 900)),
+            egid_public_enabled=_get_bool("EGID_PUBLIC_ENABLED", True),
+            egid_public_ticker_url=(
+                os.getenv("EGID_PUBLIC_TICKER_URL", "").strip()
+                or DEFAULT_EGID_PUBLIC_TICKER_URL
+            ),
+            egid_public_delay_seconds=max(0, _get_int("EGID_PUBLIC_DELAY_SECONDS", 900)),
             tradingview_enabled=_get_bool("EGX_TRADINGVIEW_ENABLED", True),
             tradingview_scanner_url=(
                 os.getenv("EGX_TRADINGVIEW_SCANNER_URL", "").strip()

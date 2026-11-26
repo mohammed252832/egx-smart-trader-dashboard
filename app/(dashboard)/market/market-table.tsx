@@ -10,6 +10,7 @@ const integer = new Intl.NumberFormat("en-EG", { maximumFractionDigits: 0 });
 function sourceLabel(stock: MarketStock) {
   if (stock.price_origin === "daily_close") return "آخر إغلاق يومي";
   if (stock.source === "egid_delayed") return "EGID الرسمي";
+  if (stock.source === "egid_public_delayed") return "EGID الرسمي (عام)";
   if (stock.source === "tradingview_delayed") return "TradingView (غير رسمي)";
   if (stock.source === "yahoo_delayed") return "Yahoo Finance";
   return "مصدر متأخر";

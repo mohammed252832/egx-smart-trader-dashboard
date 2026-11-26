@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 from zoneinfo import ZoneInfo
 
 from engine.market_time import is_quote_market_time
-from engine.providers.egid_provider import CAIRO_TZ, EgidQuoteProvider
+from engine.providers.egid_provider import CAIRO_TZ, EgidPublicQuoteProvider, EgidQuoteProvider
 
 
 class EgidProviderTests(unittest.TestCase):
@@ -99,6 +99,70 @@ class EgidProviderTests(unittest.TestCase):
         get_token.assert_called_once_with()
         self.assertEqual(self.provider.session.get.call_count, 2)
         self.assertEqual(self.provider.session.get.call_args.kwargs["headers"]["Authorization"], "Bearer fresh")
+
+
+class EgidPublicProviderTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.provider = EgidPublicQuoteProvider(delay_seconds=900)
+
+    def test_public_ticker_is_normalised_with_trade_date(self) -> None:
+        response = Mock(ok=True, status_code=200)
+        response.json.return_value = [
+            {
+                "Reuters": "RUBX.CA",
+                "eng_shortname": "Rubex",
+                "LAST_TRADE_PRICE": 12.16,
+                "PREVIOUS_CLOSE": 12.27,
+                "LAST_CHANGE_PRC": -0.9,
+                "OPEN_PRICE": 12.27,
+                "HIGH_PRICE": 12.5,
+                "LOW_PRICE": 12.06,
+                "TOTAL_VOLUME": 1200308,
+                "TOTAL_VALUE": 14695870.81,
+                "LAST_TRADE_DATE": "2026-11-26T14:29:24",
+            },
+            {"Reuters": "BAD.CA", "LAST_TRADE_PRICE": 0},
+        ]
+        with patch("engine.providers.egid_provider.requests.get", return_value=response) as get:
+            batch = self.provider.fetch_quotes()
+
+        self.assertEqual(batch.source, "egid_public_delayed")
+        self.assertEqual(batch.delay_seconds, 900)
+        self.assertEqual(len(batch.quotes), 1)
+        quote = batch.quotes[0]
+        self.assertEqual(quote.symbol, "RUBX")
+        self.assertEqual(quote.name, "Rubex")
+        self.assertEqual(quote.price, 12.16)
+        self.assertEqual(quote.change_pct, -0.9)
+        self.assertEqual(quote.volume, 1200308)
+        self.assertEqual(quote.turnover, 14695870.81)
+        self.assertEqual(quote.source_timestamp, datetime(2026, 11, 26, 14, 29, 24, tzinfo=CAIRO_TZ))
+        self.assertEqual(batch.source_timestamp, quote.source_timestamp)
+        self.assertEqual(get.call_args.kwargs["timeout"], 20)
+
+    def test_requested_symbols_limit_the_public_ticker(self) -> None:
+        response = Mock(ok=True, status_code=200)
+        response.json.return_value = [
+            {"Reuters": "COMI.CA", "LAST_TRADE_PRICE": 25.1},
+            {"Reuters": "FWRY.CA", "LAST_TRADE_PRICE": 11.5},
+        ]
+        with patch("engine.providers.egid_provider.requests.get", return_value=response):
+            batch = self.provider.fetch_quotes(("COMI",))
+
+        self.assertEqual([quote.symbol for quote in batch.quotes], ["COMI"])
+
+    def test_empty_public_ticker_fails_loudly(self) -> None:
+        response = Mock(ok=True, status_code=200)
+        response.json.return_value = []
+        with patch("engine.providers.egid_provider.requests.get", return_value=response):
+            with self.assertRaisesRegex(RuntimeError, "no usable quotes"):
+                self.provider.fetch_quotes()
+
+    def test_public_ticker_http_failure_is_reported(self) -> None:
+        response = Mock(ok=False, status_code=503)
+        with patch("engine.providers.egid_provider.requests.get", return_value=response):
+            with self.assertRaisesRegex(RuntimeError, "503"):
+                self.provider.fetch_quotes()
 
 
 class MarketTimeTests(unittest.TestCase):

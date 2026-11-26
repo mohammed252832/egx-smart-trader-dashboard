@@ -45,6 +45,9 @@ jobs:
           EGX_YAHOO_QUOTE_DELAY_SECONDS: ${{ secrets.EGX_YAHOO_QUOTE_DELAY_SECONDS || '1' }}
           EGX_MARKET_UNIVERSE_SIZE: ${{ secrets.EGX_MARKET_UNIVERSE_SIZE || '250' }}
           EGX_QUOTE_FORCE_REFRESH: ${{ github.event_name == 'workflow_dispatch' }}
+          EGID_PUBLIC_ENABLED: ${{ secrets.EGID_PUBLIC_ENABLED || 'true' }}
+          EGID_PUBLIC_TICKER_URL: ${{ secrets.EGID_PUBLIC_TICKER_URL || 'https://feed.egitdns.net/api/DelayedFeed/getTickerInfo' }}
+          EGID_PUBLIC_DELAY_SECONDS: ${{ secrets.EGID_PUBLIC_DELAY_SECONDS || '900' }}
           EGID_ENABLED: ${{ secrets.EGID_ENABLED || 'true' }}
           EGID_USERNAME: ${{ secrets.EGID_USERNAME }}
           EGID_PASSWORD: ${{ secrets.EGID_PASSWORD }}
