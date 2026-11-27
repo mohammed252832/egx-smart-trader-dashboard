@@ -28,10 +28,8 @@ jobs:
           git apply --check /tmp/shared-access.patch
           git apply /tmp/shared-access.patch
 
-      - name: Install final shared access workflow
-        run: |
-          cp .github/provision-accounts.final.yml .github/workflows/provision-accounts.yml
-          rm .github/shared-access.patch.b64 .github/provision-accounts.final.yml
+      - name: Remove temporary deployment files
+        run: rm .github/shared-access.patch.b64 .github/provision-accounts.final.yml
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -64,7 +62,7 @@ jobs:
           git diff --check
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/workflows/provision-accounts.yml .github/shared-access.patch.b64 .github/provision-accounts.final.yml README.md app engine lib supabase
+          git add .github/shared-access.patch.b64 .github/provision-accounts.final.yml README.md app engine lib supabase
           git diff --cached --check
           git commit -m "Replace individual dashboard accounts with shared password access"
           git push origin HEAD:feat/shared-password-access
