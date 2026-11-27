@@ -20,7 +20,7 @@ function Icon({ name }: { name: (typeof items)[number]["icon"] }) {
   return <><path d="M3 3v18h18" /><path d="m6 15 4-4 4 3 6-8" /></>;
 }
 
-export function Sidebar({ email }: { email: string }) {
+export function Sidebar() {
   const pathname = usePathname();
   const [openPath, setOpenPath] = useState<string | null>(null);
   const open = openPath === pathname;
@@ -48,7 +48,7 @@ export function Sidebar({ email }: { email: string }) {
             })}
           </nav>
           <div className="border-t border-white/10 p-3">
-            <p dir="ltr" className="mb-2 truncate px-2 text-left text-xs text-gray-500">{email}</p>
+            <p className="mb-2 px-2 text-xs text-gray-500">جلسة دخول مشتركة</p>
             <form action="/auth/logout" method="post">
               <button type="submit" className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-red-300 transition hover:bg-red-500/10">
                 <svg viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current stroke-width-1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

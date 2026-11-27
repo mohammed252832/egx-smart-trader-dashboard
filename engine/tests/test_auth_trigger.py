@@ -5,7 +5,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 MIGRATION = ROOT / "supabase/migrations/20261126021608_allow_auth_bootstrap_updates_without_role.sql"
+SHARED_ACCOUNT_MIGRATION = ROOT / "supabase/migrations/20261127005539_shared_password_account.sql"
+LEGACY_CLEANUP_MIGRATION = ROOT / "supabase/migrations/20261127011012_remove_legacy_dashboard_accounts.sql"
 SCHEMA = ROOT / "supabase/schema.sql"
+LEGACY_ACCOUNT_EMAILS = (
+    "kigobigo11@wm.com",
+    "mohammed.fathi2532@wm.com",
+    "wael@wm.com",
+)
 
 
 def trigger_function(sql: str) -> str:
@@ -36,6 +43,29 @@ class AuthTriggerMigrationTests(unittest.TestCase):
             trigger_function(SCHEMA.read_text(encoding="utf-8")),
             trigger_function(MIGRATION.read_text(encoding="utf-8")),
         )
+
+
+class SharedAccountMigrationTests(unittest.TestCase):
+    def test_additive_migration_only_enables_shared_account(self) -> None:
+        sql = SHARED_ACCOUNT_MIGRATION.read_text(encoding="utf-8")
+        self.assertIn("insert into private.allowed_accounts", sql)
+        self.assertIn("shared@egx-smart-trader.invalid", sql)
+        for email in LEGACY_ACCOUNT_EMAILS:
+            self.assertNotIn(email, sql)
+
+    def test_cleanup_migration_requires_ready_shared_account(self) -> None:
+        sql = LEGACY_CLEANUP_MIGRATION.read_text(encoding="utf-8")
+        self.assertIn("if not exists", sql)
+        self.assertIn("shared@egx-smart-trader.invalid", sql)
+        self.assertIn("email_confirmed_at is not null", sql)
+        self.assertIn("deleted_at is null", sql)
+        self.assertIn("banned_until", sql)
+        self.assertIn("raw_app_meta_data ->> 'role'", sql)
+
+        delete_sql = sql[sql.index("delete from private.allowed_accounts"):]
+        self.assertNotIn("shared@egx-smart-trader.invalid", delete_sql)
+        for email in LEGACY_ACCOUNT_EMAILS:
+            self.assertIn(email, delete_sql)
 
 
 if __name__ == "__main__":

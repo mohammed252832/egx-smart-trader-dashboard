@@ -7,7 +7,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
         <div className="mb-8 text-center">
           <p className="text-sm font-bold text-emerald-400">EGX SMART TRADER</p>
           <h1 className="mt-3 text-3xl font-black">بوابة تحليل البورصة المصرية</h1>
-          <p className="mt-3 text-sm leading-6 text-gray-500">دخول خاص بالحسابات المعتمدة. الأسعار متأخرة أو آخر إغلاق يومي وليست بيانات لحظية.</p>
+          <p className="mt-3 text-sm leading-6 text-gray-500">دخول بكلمة مرور مشتركة. الأسعار متأخرة أو آخر إغلاق يومي وليست بيانات لحظية.</p>
         </div>
         <section className="rounded-3xl border border-white/10 bg-[#111c30] p-6 shadow-2xl shadow-black/30 sm:p-8">
           {children}

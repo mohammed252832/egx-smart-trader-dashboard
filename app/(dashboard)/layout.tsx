@@ -5,10 +5,10 @@ import { requireUser } from "@/lib/auth";
 export const instant = false;
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
-  const user = await requireUser();
+  await requireUser();
   return (
     <>
-      <Sidebar email={user.email} />
+      <Sidebar />
       {children}
     </>
   );

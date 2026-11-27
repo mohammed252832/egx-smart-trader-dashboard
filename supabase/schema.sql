@@ -161,10 +161,7 @@ create table if not exists private.allowed_accounts (
 alter table private.allowed_accounts enable row level security;
 
 insert into private.allowed_accounts (email)
-values
-  ('kigobigo11@wm.com'),
-  ('mohammed.fathi2532@wm.com'),
-  ('wael@wm.com')
+values ('shared@egx-smart-trader.invalid')
 on conflict (email) do nothing;
 
 create or replace function private.is_allowed_authenticated()
