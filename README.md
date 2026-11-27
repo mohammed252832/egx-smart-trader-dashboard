@@ -7,10 +7,10 @@
 ## روابط الإنتاج
 
 - **الداشبورد:** https://egx-smart-trader-dashboard.vercel.app
-- **API:** https://egx-smart-trader-dashboard.vercel.app/api/recommendations ويتطلب جلسة دخول لحساب معتمد.
+- **API:** https://egx-smart-trader-dashboard.vercel.app/api/recommendations ويتطلب جلسة الدخول المشتركة.
 - **المستودع:** `mohammed252832/egx-smart-trader-dashboard`.
 - **محرك التحليل:** GitHub Actions على المستودع نفسه (الأحد–الخميس 13:30 UTC، بعد إغلاق السوق بتوقيت القاهرة).
-- الدخول خاص بثلاثة حسابات معتمدة؛ لا يوجد تسجيل عام. النشر يتم من الفرع `main` عبر ربط Vercel بالمستودع.
+- الدخول بكلمة مرور مشتركة عبر حساب Supabase داخلي واحد؛ لا يوجد تسجيل عام. النشر يتم من الفرع `main` عبر ربط Vercel بالمستودع.
 
 ## المعمارية
 
@@ -24,7 +24,7 @@
 
 - **Vercel** يستضيف الواجهة فقط؛ لا يشغّل Python.
 - **GitHub Actions** يشغّل محرك Python بعد إغلاق السوق، ويفشل بوضوح عند غياب البيانات أو قلة السهم المؤهلة.
-- الواجهة تقرأ من Supabase عبر مفتاح `sb_publishable_...` فقط بعد التحقق من جلسة Supabase ودور `member` والبريد المسموح به. RLS يتحقق أيضاً من وجود المستخدم والجلسة في قاعدة البيانات. لا توجد بيانات تجريبية؛ إذا تعذّر القراءة تظهر حالة فارغة وتنبيه وضوح.
+- الواجهة تقرأ من Supabase عبر مفتاح `sb_publishable_...` فقط بعد التحقق من جلسة Supabase ودور `member` للحساب الداخلي المشترك. RLS يتحقق أيضاً من وجود المستخدم والجلسة في قاعدة البيانات. لا توجد بيانات تجريبية؛ إذا تعذّر القراءة تظهر حالة فارغة وتنبيه وضوح.
 - `proxy.ts` يجدد كوكيز الجلسة ويحمي الصفحات وAPI قبل rendering، بينما تبقى صفحات لوحة التحميل محمية بتحقق مستقل على الخادم.
 
 ## محتويات المشروع
@@ -33,29 +33,31 @@
 | --- | --- |
 | `app/(dashboard)/` | لوحة التوصيات، قائمة السوق، اختيار الأسهم، وصفحة الرسم الشهري |
 | `app/sidebar.tsx` | القائمة الجانبية العائمة: الرئيسية، السوق، الرسوم الشهرية، وتسجيل الخروج |
-| `app/login/` و`app/auth/` | الدخول واستعادة كلمة المرور وتأكيد الروابط والخروج |
+| `app/login/` و`app/auth/` | الدخول بكلمة المرور المشتركة والخروج |
 | `proxy.ts` | تجديد جلسة Supabase وحماية المسارات الخاصة |
 | `app/api/recommendations/route.ts` | JSON API محمي بجلسة حساب معتمد |
 | `lib/market-data.ts` | قراءة أعلى الأسهم سيولة والبيانات الشهرية الحقيقية |
 | `supabase/schema.sql` | الجداول، العروض، قائمة الحسابات، وسياسات RLS الخاصة |
-| `supabase/migrations/20261125225651_market_auth_views.sql` | ترحيل الحسابات الخاصة وعروض السوق والرسوم الشهرية |
+| `supabase/migrations/20261125225651_market_auth_views.sql` | ترحيل حماية البيانات وعروض السوق والرسوم الشهرية |
+| `supabase/migrations/20261127005539_shared_password_account.sql` | إضافة الحساب الداخلي المشترك |
+| `supabase/migrations/20261127011012_remove_legacy_dashboard_accounts.sql` | إزالة الحسابات الثلاثة القديمة بعد التحقق |
 | `engine/` | محرك التحليل بلغة Python |
 | `engine/providers/` | موائمات المصادر الحقيقية (HTTP / CSV) |
 | `.github/workflows/analyze.yml` | تشغيل محرك التحليل وكتابة النتائج في Supabase |
 | `.github/workflows/refresh.yml` | تحديث الأسعار المتأخرة كل 10 دقائق |
-| `.github/workflows/provision-accounts.yml` | إنشاء الحسابات المعتمدة يدوياً دون إعادة تعيين كلمات المرور |
+| `.github/workflows/provision-accounts.yml` | إعداد الحساب المشترك وحذف الحسابات القديمة عند تفعيل الخيار |
 | `.github/workflows/deploy.yml` | تشغيل نشر الداشبورد على Vercel |
 
 ## 1) إعداد Supabase
 
-1. في مشروع قائم، شغّل محتوى `supabase/migrations/20261125225651_market_auth_views.sql` كما هو في **SQL Editor** بعد مراجعة الفروقات. لا تعدّل الجداول يدوياً خارج ملف الترحيل، ولا تحذف بيانات الإنتاج.
+1. في مشروع قائم، شغّل ترحيلات Supabase بالترتيب في **SQL Editor** بعد مراجعة الفروقات. أضف الحساب المشترك أولاً، ثم طبّق `20261127011012_remove_legacy_dashboard_accounts.sql` بعد التحقق من الدخول. لا تعدّل الجداول يدوياً خارج ملفات الترحيل، ولا تحذف بيانات الإنتاج.
 2. في تثبيت جديد فقط، يحتوي `supabase/schema.sql` على الجداول والعروض وسياسات RLS الخاصة المحدثة.
 3. من **Project Settings** خذ:
    - **General → Project URL** → `https://xxxx.supabase.co` (لـ Vercel + GitHub).
    - **API Keys → Publishable key** → يبدأ بـ `sb_publishable_...` (للواجهة فقط).
    - **API Keys → Secret key** → يبدأ بـ `sb_secret_...` (لـ GitHub Actions فقط). **لا** تضعه في Vercel ولا تسبقه بـ `NEXT_PUBLIC_`.
 
-> لا يستخدم الكود مفاتيح `anon` / `service_role` القديمة. الترحيل ينشئ `private.allowed_accounts`، ويمنع التسجيل العام وتغيير البريد، ويقيّد القراءة بثلاثة حسابات بدور `member` وجلسة موجودة فعلاً.
+> لا يستخدم الكود مفاتيح `anon` / `service_role` القديمة. الترحيل يبقي `private.allowed_accounts` محصوراً في حساب Supabase داخلي واحد بدور `member`، ويمنع التسجيل العام وتغيير البريد، ويقيّد القراءة بجلسة موجودة فعلاً.
 
 الجداول: `stocks`, `price_bars`, `analysis_runs`, `recommendations`, `recommendation_outcomes`, `data_source_status`, `live_quotes`. العروض: `top_recommendations`, `market_daily_bars`, `latest_market`, `monthly_price_bars`.
 
@@ -78,6 +80,7 @@ NEXT_PUBLIC_SITE_URL=https://egx-smart-trader-dashboard.vercel.app
 ```
 SUPABASE_URL
 SUPABASE_SECRET_KEY           # sb_secret_... — استبدل الاسم القديم SUPABASE_SERVICE_ROLE_KEY
+DASHBOARD_SHARED_PASSWORD     # كلمة مرور الدخول المشتركة — GitHub Secret فقط
 EGX_YAHOO_ENABLED=true
 EGX_BORSA_ENABLED=true
 EGX_HISTORY_DAYS=400
@@ -155,14 +158,15 @@ EGX_BORSA_API_KEY=        # اختياري، لنسخة مستضافة ذاتي�
 
 > رخصة EGID/EGX.news/EODHD تجارية؛ تأكد من شروط الوصول قبل استخدام بياناتها تجارياً. TradingView وYahoo/Borsa مصادر غير رسمية أو متأخرة وليست تغذية EGX الرسمية.
 
-### الحسابات الخاصة وكلمات المرور
+### الدخول المشترك
 
-الحسابات المعتمدة هي `kigobigo11@wm.com` و`mohammed.fathi2532@wm.com` و`wael@wm.com`. كلها بدور `member`، ولا يمكن إنشاء حساب عام أو تغيير بريد الحساب.
+صفحة الدخول تطلب كلمة المرور فقط، وتستخدم حساب Supabase داخلياً واحداً بدور `member`. كلمة المرور نفسها لا تُخزَّن في الكود أو متغيرات Vercel؛ تُحفظ كـ hash داخل Supabase Auth، ويُضبطها GitHub Actions من سر `DASHBOARD_SHARED_PASSWORD`.
 
-1. شغّل ترحيل Supabase أولاً.
-2. من **Actions → Provision dashboard accounts → Run workflow** شغّل إنشاء الحسابات. العملية آمنة للتكرار: تنشئ الناقص فقط، وتؤكد البريد والدور، ولا تعيد تعيين كلمة مرور حساب موجود ولا تحذف مستخدماً.
-3. كل مستخدم يفتح **نسيت كلمة المرور**، يطلب رابطاً لبريده، ثم ينشئ كلمة مروره الخاصة. الرابط يعود إلى `/auth/confirm` على النطاق الرسمي.
-4. كلمة مرور التخزين المؤقت التي ينشئها workflow عشوائية ولا تُسجّل؛ لا يحتاج المستخدم معرفتها.
+1. شغّل ترحيل `20261127005539_shared_password_account.sql` أولاً.
+2. من **Actions → Configure shared dashboard access → Run workflow** اضبط الحساب المشترك وكلمة المرور مع إبقاء خياري الحذف والتحقق من الموقع متوقفين. يتأكد الـ workflow من نجاح الدخول إلى Supabase قبل متابعة أي خطوة.
+3. بعد نجاح تهيئة الحساب، انشر واجهة الدخول الجديدة، ثم شغّل الـ workflow مرة أخرى مع تفعيل **Verify shared password login against the deployed dashboard** وإبقاء الحذف متوقفاً.
+4. فقط بعد نجاح التحقق من الموقع، طبّق ترحيل `20261127011012_remove_legacy_dashboard_accounts.sql`، ثم شغّل الـ workflow مع تفعيل التحقق من الموقع و**Delete the three legacy dashboard accounts**.
+5. أي شخص يملك كلمة المرور يمكنه الدخول. لا توجد استعادة كلمة مرور بالبريد ولا يمكن للمستخدم المشترك تغيير كلمة المرور من داخل الموقع.
 
 ### قائمة السوق والرسوم الشهرية
 
