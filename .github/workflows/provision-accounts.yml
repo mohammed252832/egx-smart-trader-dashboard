@@ -1,68 +1,63 @@
-name: Apply shared dashboard access
+name: Configure shared dashboard access
 
 on:
   workflow_dispatch:
+    inputs:
+      remove_legacy_accounts:
+        description: Delete the three legacy dashboard accounts after configuring shared access
+        required: false
+        type: boolean
+        default: false
+      verify_live_login:
+        description: Verify shared password login against the deployed dashboard before any legacy deletion
+        required: false
+        type: boolean
+        default: false
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: shared-access-production-apply
+  group: egx-dashboard-account-provisioning
   cancel-in-progress: false
 
 jobs:
-  apply:
+  provision:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Create production feature branch
-        run: git checkout -B feat/shared-password-access
-
-      - name: Decode shared access patch
-        run: |
-          base64 -d .github/shared-access.patch.b64 > /tmp/shared-access.patch
-          test -s /tmp/shared-access.patch
-          git apply --check /tmp/shared-access.patch
-          git apply /tmp/shared-access.patch
-
-      - name: Remove temporary deployment files
-        run: rm .github/shared-access.patch.b64 .github/provision-accounts.final.yml
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Build
-        run: npm run build
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install provisioning test dependency
+      - name: Install provisioning dependency
         run: python -m pip install requests==2.34.2
 
-      - name: Test provisioning and auth migrations
+      - name: Test account provisioning
         run: python -m unittest engine.tests.test_provision_accounts engine.tests.test_auth_trigger -v
 
-      - name: Commit and push shared access branch
+      - name: Configure shared dashboard account
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SUPABASE_SHARED_PASSWORD: ${{ secrets.DASHBOARD_SHARED_PASSWORD }}
+          REMOVE_LEGACY_ACCOUNTS: ${{ inputs.remove_legacy_accounts }}
+          VERIFY_LIVE_LOGIN: ${{ inputs.verify_live_login }}
+          DASHBOARD_URL: https://egx-smart-trader-dashboard.vercel.app
         run: |
-          git diff --check
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/shared-access.patch.b64 .github/provision-accounts.final.yml README.md app engine lib supabase
-          git diff --cached --check
-          git commit -m "Replace individual dashboard accounts with shared password access"
-          git push origin HEAD:feat/shared-password-access
+          if [ -z "$SUPABASE_SHARED_PASSWORD" ]; then
+            echo "DASHBOARD_SHARED_PASSWORD secret is required" >&2
+            exit 1
+          fi
+          args=()
+          if [ "$REMOVE_LEGACY_ACCOUNTS" = "true" ]; then
+            args+=(--remove-legacy)
+          fi
+          if [ "$VERIFY_LIVE_LOGIN" = "true" ]; then
+            args+=(--verify-live-login)
+          fi
+          python -m engine.provision_accounts "${args[@]}"
