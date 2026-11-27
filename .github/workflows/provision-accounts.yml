@@ -1,33 +1,26 @@
-name: Provision dashboard accounts
+name: Bootstrap shared dashboard access
 
 on:
   workflow_dispatch:
-    inputs:
-      set_shared_password:
-        description: Set the allowlisted accounts to the DASHBOARD_SHARED_PASSWORD secret
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   contents: read
 
-concurrency:
-  group: egx-dashboard-account-provisioning
-  cancel-in-progress: false
-
 jobs:
-  provision:
+  bootstrap:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Checkout repository
+      - name: Checkout shared access implementation
         uses: actions/checkout@v4
+        with:
+          repository: mohammedfathi2532-code/egx-smart-trader
+          ref: feat/shared-password-access
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: '3.12'
 
       - name: Install provisioning dependency
         run: python -m pip install requests==2.34.2
@@ -35,14 +28,9 @@ jobs:
       - name: Test account provisioning
         run: python -m unittest engine.tests.test_provision_accounts engine.tests.test_auth_trigger -v
 
-      - name: Create missing allowlisted accounts
+      - name: Configure and verify shared dashboard account
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-          SUPABASE_SHARED_PASSWORD: ${{ inputs.set_shared_password && secrets.DASHBOARD_SHARED_PASSWORD || '' }}
-        run: |
-          if [ "${{ inputs.set_shared_password }}" = "true" ] && [ -z "$SUPABASE_SHARED_PASSWORD" ]; then
-            echo "DASHBOARD_SHARED_PASSWORD secret is required" >&2
-            exit 1
-          fi
-          python -m engine.provision_accounts
+          SUPABASE_SHARED_PASSWORD: ${{ secrets.DASHBOARD_SHARED_PASSWORD }}
+        run: python -m engine.provision_accounts
