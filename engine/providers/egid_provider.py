@@ -133,7 +133,7 @@ def _parse_quotes(
 ) -> tuple[Quote, ...]:
     quotes: list[Quote] = []
     for row in _rows(payload):
-        symbol = _symbol(_pick(row, "symbol", "symbolCode", "reuters", "ticker", "code"))
+        symbol = _symbol(_pick(row, "reuters", "ticker", "symbol", "symbolCode", "code"))
         price = _positive(
             _pick(
                 row,
