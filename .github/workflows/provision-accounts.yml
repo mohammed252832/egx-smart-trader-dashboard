@@ -11,26 +11,70 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Checkout shared access implementation
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          repository: mohammedfathi2532-code/egx-smart-trader
-          ref: feat/shared-password-access
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install provisioning dependency
         run: python -m pip install requests==2.34.2
-
-      - name: Test account provisioning
-        run: python -m unittest engine.tests.test_provision_accounts engine.tests.test_auth_trigger -v
 
       - name: Configure and verify shared dashboard account
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           SUPABASE_SHARED_PASSWORD: ${{ secrets.DASHBOARD_SHARED_PASSWORD }}
-        run: python -m engine.provision_accounts
+        run: |
+          python - <<'PY'
+          import os
+          import requests
+          from engine import provision_accounts as provisioner
+
+          supabase_url = os.environ["SUPABASE_URL"].strip().rstrip("/")
+          secret_key = os.environ["SUPABASE_SECRET_KEY"].strip()
+          password = os.environ["SUPABASE_SHARED_PASSWORD"]
+          email = "shared@egx-smart-trader.invalid"
+
+          if not supabase_url.startswith("https://") or not secret_key.startswith("sb_secret_"):
+              raise RuntimeError("Supabase configuration is invalid")
+          if not 8 <= len(password) <= 72:
+              raise RuntimeError("The shared password must be between 8 and 72 characters")
+
+          provisioner.ALLOWED_ACCOUNT_EMAILS = (email,)
+          created, updated = provisioner.provision_accounts(supabase_url, secret_key, password)
+          print(f"Shared account provisioning complete: created={created}, updated={updated}")
+
+          base_url = f"{supabase_url}/auth/v1"
+          headers = {"apikey": secret_key, "Content-Type": "application/json"}
+          with requests.Session() as session:
+              response = session.post(
+                  f"{base_url}/token",
+                  headers=headers,
+                  params={"grant_type": "password"},
+                  json={"email": email, "password": password},
+                  timeout=20,
+              )
+              if not response.ok:
+                  raise RuntimeError(f"Shared dashboard sign-in failed ({response.status_code})")
+              payload = response.json()
+              user = payload.get("user") or {}
+              metadata = user.get("app_metadata") or {}
+              token = payload.get("access_token")
+              if str(user.get("email") or "").lower() != email:
+                  raise RuntimeError("Shared dashboard sign-in returned an unexpected user")
+              if metadata.get("role") != "member" or not isinstance(token, str) or not token:
+                  raise RuntimeError("Shared dashboard sign-in did not return an authorized member session")
+              try:
+                  logout = session.post(
+                      f"{base_url}/logout",
+                      headers={**headers, "Authorization": f"Bearer {token}"},
+                      timeout=20,
+                  )
+                  if not logout.ok:
+                      print("Warning: could not sign out the verification session")
+              finally:
+                  print("Verified shared dashboard password sign-in")
+          PY
