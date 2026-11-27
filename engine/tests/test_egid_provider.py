@@ -109,6 +109,7 @@ class EgidPublicProviderTests(unittest.TestCase):
         response = Mock(ok=True, status_code=200)
         response.json.return_value = [
             {
+                "SYMBOL_CODE": "EGS3A221C018",
                 "Reuters": "RUBX.CA",
                 "eng_shortname": "Rubex",
                 "LAST_TRADE_PRICE": 12.16,
