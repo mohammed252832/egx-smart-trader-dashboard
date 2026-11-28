@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AutoRefresh } from "@/app/auto-refresh";
-import { getDashboardData } from "@/lib/data";
 import { getInsights } from "@/lib/insights";
+import { getDashboardDataOnce } from "@/lib/notices";
 import { formatCairoDateTime } from "@/lib/market-time";
 import type { LiquidityLeader, LiquidRisingPick, LiveQuote, MarketState, Recommendation } from "@/lib/types";
 import { formatEgp, LiquidityBars, MarketStateChart } from "./insight-charts";
@@ -196,14 +196,13 @@ function LeadersTable({ rows }: { rows: LiquidityLeader[] }) {
 }
 
 export default async function Page() {
-  const [dashboard, insights] = await Promise.all([getDashboardData(), getInsights()]);
+  const [dashboard, insights] = await Promise.all([getDashboardDataOnce(), getInsights()]);
   const {
     recommendations,
     stats,
     lastRunAt,
     marketDate,
     expectedSession,
-    isStale,
     isEmpty,
     liveQuotes,
     marketRefresh,
@@ -212,11 +211,6 @@ export default async function Page() {
   const delayMinutes = marketRefresh?.delay_seconds === null || marketRefresh?.delay_seconds === undefined
     ? null
     : Math.round(marketRefresh.delay_seconds / 60);
-  const refreshFailed = Boolean(
-    marketRefresh?.last_error
-    && (!marketRefresh.last_success_at
-      || Date.parse(marketRefresh.updated_at) > Date.parse(marketRefresh.last_success_at)),
-  );
 
   const latestState = insights.marketState.at(-1) ?? null;
   const latestLiquidity = insights.liquidityDays.at(-1) ?? null;
@@ -245,25 +239,6 @@ export default async function Page() {
                 : "تحديث الأسعار غير مفعّل"}
           </span>
         </header>
-
-        {isStale && (
-          <div className="mb-6 rounded-xl border border-warn/30 bg-warn-soft p-4 text-sm leading-7 text-warn">
-            تنبيه: البيانات المعروضة أقدم من آخر جلسة متوقعة ({expectedSession ?? "—"}). قد يكون تشغيل التحليل متأخراً أو يوم عطلة؛ تحقق من تبويب Actions.
-          </div>
-        )}
-
-        {marketRefresh?.last_error && (
-          <div
-            className={`mb-6 rounded-xl border p-4 text-sm leading-7 ${
-              refreshFailed ? "border-down/30 bg-down-soft text-down" : "border-warn/30 bg-warn-soft text-warn"
-            }`}
-          >
-            {refreshFailed
-              ? "تعذّر آخر تحديث للأسهم. نعرض آخر بيانات ناجحة، والخطأ: "
-              : "اكتمل آخر تحديث جزئياً أو بعد الرجوع لمصدر احتياطي. نعرض آخر بيانات ناجحة، والتفاصيل: "}
-            {marketRefresh.last_error}
-          </div>
-        )}
 
         <div className="card mb-6 grid gap-4 p-5 text-sm sm:grid-cols-3">
           <div>
