@@ -1,18 +1,20 @@
 import type { ReactNode } from "react";
+import { BrandMark } from "./brand-mark";
 
-export function AuthShell({ children }: { children: ReactNode }) {
+export function AuthShell({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
-    <main dir="rtl" className="flex min-h-screen items-center justify-center bg-[#0a1120] px-5 py-12 text-white">
+    <main dir="rtl" className="flex min-h-screen items-center justify-center bg-page px-5 py-12 text-ink">
       <div className="w-full max-w-md">
-        <div className="mb-8 text-center">
-          <p className="text-sm font-bold text-emerald-400">EGX SMART TRADER</p>
-          <h1 className="mt-3 text-3xl font-black">بوابة تحليل البورصة المصرية</h1>
-          <p className="mt-3 text-sm leading-6 text-gray-500">دخول بكلمة مرور مشتركة. الأسعار متأخرة أو آخر إغلاق يومي وليست بيانات لحظية.</p>
+        <div className="mb-8 flex flex-col items-center text-center">
+          <BrandMark className="h-14 w-14" />
+          <p className="mt-4 text-sm font-semibold text-brand">EGX Smart Trader</p>
+          <h1 className="mt-1 text-3xl font-bold">{title}</h1>
+          {subtitle && <p className="mt-3 text-sm leading-6 text-muted">{subtitle}</p>}
         </div>
-        <section className="rounded-3xl border border-white/10 bg-[#111c30] p-6 shadow-2xl shadow-black/30 sm:p-8">
-          {children}
-        </section>
-        <p className="mt-6 text-center text-xs leading-6 text-gray-600">أداة بحث وتحليل، وليست نصيحة استثمارية.</p>
+        <section className="card p-6 sm:p-8">{children}</section>
+        <p className="mt-6 text-center text-xs leading-6 text-muted">
+          الأسعار متأخرة أو آخر إغلاق يومي وليست بيانات لحظية. أداة بحث وتحليل، وليست نصيحة استثمارية.
+        </p>
       </div>
     </main>
   );

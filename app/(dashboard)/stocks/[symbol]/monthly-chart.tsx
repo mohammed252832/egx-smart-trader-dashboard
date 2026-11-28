@@ -24,7 +24,7 @@ export function MonthlyChart({ bars }: { bars: MonthlyBar[] }) {
     : null;
 
   if (!latest) {
-    return <p className="rounded-2xl border border-white/10 bg-[#111c30] p-8 text-center text-sm text-gray-500">لا توجد أشهر كافية لعرض الرسم.</p>;
+    return <p className="card p-8 text-center text-sm text-muted">لا توجد أشهر كافية لعرض الرسم.</p>;
   }
 
   const width = 840;
@@ -45,43 +45,43 @@ export function MonthlyChart({ bars }: { bars: MonthlyBar[] }) {
   return (
     <div>
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-2xl border border-white/10 bg-[#0a1120] p-4">
-          <p className="text-xs text-gray-500">آخر إغلاق شهري</p>
-          <p className="mt-2 text-xl font-black" dir="ltr">{number.format(latest.close)}</p>
-          <p className="mt-1 text-xs text-gray-500" dir="ltr">{latest.last_trade_date}</p>
+        <div className="card p-4">
+          <p className="text-xs text-muted">آخر إغلاق شهري</p>
+          <p className="mt-2 text-xl font-bold" dir="ltr">{number.format(latest.close)}</p>
+          <p className="mt-1 text-xs text-muted" dir="ltr">{latest.last_trade_date}</p>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-[#0a1120] p-4">
-          <p className="text-xs text-gray-500">تغير الشهر</p>
-          <p className={`mt-2 text-xl font-black ${monthChange !== null && monthChange < 0 ? "text-red-400" : "text-emerald-400"}`} dir="ltr">
+        <div className="card p-4">
+          <p className="text-xs text-muted">تغير الشهر</p>
+          <p className={`mt-2 text-xl font-bold ${monthChange !== null && monthChange < 0 ? "text-down" : "text-up"}`} dir="ltr">
             {monthChange === null ? "—" : `${monthChange > 0 ? "+" : ""}${number.format(monthChange)}%`}
           </p>
-          <p className="mt-1 text-xs text-gray-500">{latest.sessions} جلسة</p>
+          <p className="mt-1 text-xs text-muted">{latest.sessions} جلسة</p>
         </div>
-        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-          <p className="text-xs text-emerald-300">حد الأمان · دعم S1</p>
-          <p className="mt-2 text-xl font-black text-emerald-300" dir="ltr">{safety === null ? "—" : number.format(safety)}</p>
+        <div className="rounded-xl border border-up/30 bg-up-soft p-4">
+          <p className="text-xs text-up">حد الأمان · دعم S1</p>
+          <p className="mt-2 text-xl font-bold text-up" dir="ltr">{safety === null ? "—" : number.format(safety)}</p>
         </div>
-        <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-4">
-          <p className="text-xs text-red-300">حد الخطر · مقاومة R1</p>
-          <p className="mt-2 text-xl font-black text-red-300" dir="ltr">{risk === null ? "—" : number.format(risk)}</p>
+        <div className="rounded-xl border border-down/30 bg-down-soft p-4">
+          <p className="text-xs text-down">حد الخطر · مقاومة R1</p>
+          <p className="mt-2 text-xl font-bold text-down" dir="ltr">{risk === null ? "—" : number.format(risk)}</p>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-white/10 bg-[#0a1120] p-3">
+      <div className="card overflow-x-auto p-3">
         <svg viewBox={`0 0 ${width} ${height}`} className="min-w-[680px] w-full" role="img" aria-label="رسم إغلاق الأسهم شهرياً مع نطاق أعلى وأدنى سعر ومستويي الأمان والخطر">
           <title>الرسم الشهري لآخر {bars.length} شهراً</title>
           {[0, 1, 2, 3, 4].map((step) => {
             const value = min + ((max - min) * step) / 4;
             return (
               <g key={step}>
-                <line x1={padding.left} x2={width - padding.right} y1={y(value)} y2={y(value)} stroke="#ffffff" strokeOpacity="0.07" />
-                <text x={padding.left - 10} y={y(value) + 4} textAnchor="end" fill="#64748b" fontSize="11">{number.format(value)}</text>
+                <line x1={padding.left} x2={width - padding.right} y1={y(value)} y2={y(value)} stroke="#cfdfdb" />
+                <text x={padding.left - 10} y={y(value) + 4} textAnchor="end" fill="#5d6f69" fontSize="11">{number.format(value)}</text>
               </g>
             );
           })}
 
           {bars.map((bar, index) => (
-            <line key={`range-${bar.month_start}`} x1={x(index)} x2={x(index)} y1={y(bar.high)} y2={y(bar.low)} stroke="#475569" strokeWidth="2" />
+            <line key={`range-${bar.month_start}`} x1={x(index)} x2={x(index)} y1={y(bar.high)} y2={y(bar.low)} stroke="#9fb3ad" strokeWidth="2" />
           ))}
 
           {bars.slice(1).map((bar, index) => {
@@ -94,7 +94,7 @@ export function MonthlyChart({ bars }: { bars: MonthlyBar[] }) {
                 y1={y(prior.close)}
                 x2={x(index + 1)}
                 y2={y(bar.close)}
-                stroke={rising ? "#34d399" : "#f87171"}
+                stroke={rising ? "#0a7a4f" : "#c43d2f"}
                 strokeWidth="3"
               />
             );
@@ -102,27 +102,27 @@ export function MonthlyChart({ bars }: { bars: MonthlyBar[] }) {
 
           {safety !== null && (
             <g>
-              <line x1={padding.left} x2={width - padding.right} y1={y(safety)} y2={y(safety)} stroke="#34d399" strokeDasharray="7 6" strokeWidth="1.5" />
-              <text x={width - padding.right} y={y(safety) - 7} textAnchor="end" fill="#6ee7b7" fontSize="12">الأمان {number.format(safety)}</text>
+              <line x1={padding.left} x2={width - padding.right} y1={y(safety)} y2={y(safety)} stroke="#0a7a4f" strokeDasharray="7 6" strokeWidth="1.5" />
+              <text x={width - padding.right} y={y(safety) - 7} textAnchor="end" fill="#0a7a4f" fontSize="12">الأمان {number.format(safety)}</text>
             </g>
           )}
           {risk !== null && (
             <g>
-              <line x1={padding.left} x2={width - padding.right} y1={y(risk)} y2={y(risk)} stroke="#f87171" strokeDasharray="7 6" strokeWidth="1.5" />
-              <text x={width - padding.right} y={y(risk) - 7} textAnchor="end" fill="#fca5a5" fontSize="12">الخطر {number.format(risk)}</text>
+              <line x1={padding.left} x2={width - padding.right} y1={y(risk)} y2={y(risk)} stroke="#c43d2f" strokeDasharray="7 6" strokeWidth="1.5" />
+              <text x={width - padding.right} y={y(risk) - 7} textAnchor="end" fill="#c43d2f" fontSize="12">الخطر {number.format(risk)}</text>
             </g>
           )}
 
           {bars.map((bar, index) => {
             const prior = bars[index - 1];
-            const color = !prior || bar.close >= prior.close ? "#34d399" : "#f87171";
+            const color = !prior || bar.close >= prior.close ? "#0a7a4f" : "#c43d2f";
             return (
               <g key={bar.month_start}>
-                <circle cx={x(index)} cy={y(bar.close)} r="4.5" fill={color} stroke="#0a1120" strokeWidth="2">
+                <circle cx={x(index)} cy={y(bar.close)} r="4.5" fill={color} stroke="#fcfffe" strokeWidth="2">
                   <title>{monthLabel.format(new Date(`${bar.month_start}T00:00:00Z`))}: إغلاق {number.format(bar.close)}، أعلى {number.format(bar.high)}، أدنى {number.format(bar.low)}</title>
                 </circle>
                 {index % labelStep === 0 && (
-                  <text x={x(index)} y={height - 18} textAnchor="middle" fill="#64748b" fontSize="11">{monthLabel.format(new Date(`${bar.month_start}T00:00:00Z`))}</text>
+                  <text x={x(index)} y={height - 18} textAnchor="middle" fill="#5d6f69" fontSize="11">{monthLabel.format(new Date(`${bar.month_start}T00:00:00Z`))}</text>
                 )}
               </g>
             );
@@ -130,15 +130,15 @@ export function MonthlyChart({ bars }: { bars: MonthlyBar[] }) {
         </svg>
       </div>
 
-      <div className="mt-5 flex flex-wrap gap-5 text-xs text-gray-400">
-        <span className="flex items-center gap-2"><i className="h-0.5 w-6 bg-emerald-400" /> شهر صاعد</span>
-        <span className="flex items-center gap-2"><i className="h-0.5 w-6 bg-red-400" /> شهر هابط</span>
-        <span className="flex items-center gap-2"><i className="h-0.5 w-6 border-t border-dashed border-emerald-400" /> حد الأمان</span>
-        <span className="flex items-center gap-2"><i className="h-0.5 w-6 border-t border-dashed border-red-400" /> حد الخطر</span>
+      <div className="mt-5 flex flex-wrap gap-5 text-xs text-muted">
+        <span className="flex items-center gap-2"><i className="h-0.5 w-6 bg-up" /> شهر صاعد</span>
+        <span className="flex items-center gap-2"><i className="h-0.5 w-6 bg-down" /> شهر هابط</span>
+        <span className="flex items-center gap-2"><i className="h-0.5 w-6 border-t border-dashed border-up" /> حد الأمان</span>
+        <span className="flex items-center gap-2"><i className="h-0.5 w-6 border-t border-dashed border-down" /> حد الخطر</span>
       </div>
 
-      <div className="mt-6 rounded-2xl border border-white/10 bg-[#111c30] p-5 text-sm leading-7 text-gray-400">
-        <p className="mb-2 font-bold text-gray-200">طريقة حساب المستويين</p>
+      <div className="mt-6 card p-5 text-sm leading-7 text-muted">
+        <p className="mb-2 font-bold text-ink">طريقة حساب المستويين</p>
         {priorMonth ? (
           <p>
             نقطة الارتكاز = (أعلى {number.format(priorMonth.high)} + أدنى {number.format(priorMonth.low)} + إغلاق {number.format(priorMonth.close)}) ÷ 3.
@@ -147,7 +147,7 @@ export function MonthlyChart({ bars }: { bars: MonthlyBar[] }) {
         ) : (
           <p>يلزم وجود الشهر السابق مباشرةً وبياناته الكاملة لإظهار المستويين؛ لا نستخدم شهراً أقدم بديلاً.</p>
         )}
-        <p className="mt-2 text-yellow-300/80">هذه مستويات دعم ومقاومة إرشادية، وليست وقف خسارة أو هدفاً مضموناً. الشهر الأخير قد يكون جزئياً.</p>
+        <p className="mt-2 text-warn">هذه مستويات دعم ومقاومة إرشادية، وليست وقف خسارة أو هدفاً مضموناً. الشهر الأخير قد يكون جزئياً.</p>
       </div>
     </div>
   );

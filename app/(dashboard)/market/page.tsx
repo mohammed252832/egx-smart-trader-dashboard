@@ -10,33 +10,32 @@ export default async function MarketPage() {
   const dailyCount = rows.length - liveCount;
 
   return (
-    <main dir="rtl" className="min-h-screen bg-[#0a1120] px-5 py-10 text-white sm:px-8">
+    <main dir="rtl" className="min-h-screen px-5 py-10 sm:px-8">
       <AutoRefresh />
       <div className="mx-auto max-w-7xl">
         <header className="mb-8">
-          <p className="text-sm text-emerald-400">EGX SMART TRADER</p>
-          <h1 className="mt-2 text-3xl font-black">آخر تحديث لأسهم البورصة المصرية</h1>
-          <p className="mt-3 max-w-3xl text-sm leading-7 text-gray-500">
+          <h1 className="text-3xl font-bold">آخر تحديث لأسهم البورصة المصرية</h1>
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-muted">
             أعلى 250 سهماً حسب سيولة آخر 20 جلسة، مع عرض العدد الفعلي المتاح. اضغط على أي سهم لفتح رسمه الشهري.
           </p>
         </header>
 
         <div className="mb-6 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-white/10 bg-[#111c30] p-5">
-            <p className="text-sm text-gray-500">أسهم متاحة الآن</p>
-            <p className="mt-2 text-3xl font-black text-emerald-400">{rows.length}</p>
+          <div className="card p-5">
+            <p className="text-sm text-muted">أسهم متاحة الآن</p>
+            <p className="mt-2 text-3xl font-bold text-brand">{rows.length}</p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-[#111c30] p-5">
-            <p className="text-sm text-gray-500">بسعر تحديث متأخر</p>
-            <p className="mt-2 text-3xl font-black text-cyan-400">{liveCount}</p>
+          <div className="card p-5">
+            <p className="text-sm text-muted">بسعر تحديث متأخر</p>
+            <p className="mt-2 text-3xl font-bold text-up">{liveCount}</p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-[#111c30] p-5">
-            <p className="text-sm text-gray-500">بآخر إغلاق يومي</p>
-            <p className="mt-2 text-3xl font-black text-yellow-400">{dailyCount}</p>
+          <div className="card p-5">
+            <p className="text-sm text-muted">بآخر إغلاق يومي</p>
+            <p className="mt-2 text-3xl font-bold text-warn">{dailyCount}</p>
           </div>
         </div>
 
-        <div className="mb-6 rounded-2xl border border-yellow-500/20 bg-yellow-500/5 p-4 text-sm leading-7 text-yellow-200/80">
+        <div className="mb-6 rounded-xl border border-warn/30 bg-warn-soft p-4 text-sm leading-7 text-warn">
           المصادر المجانية متأخرة أو يومية. تاريخ كل سعر ظاهر بجوار المصدر، ولا نملأ البيانات الناقصة بأرقام تقديرية.
         </div>
 

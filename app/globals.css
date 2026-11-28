@@ -1,19 +1,155 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0a1120;
-  --foreground: #f8fafc;
+  color-scheme: light;
+  --page: #f3faf7;
+  --card: #fcfffe;
+  --line: #cfdfdb;
+  --ink: #151c1f;
+  --muted: #5d6f69;
+  --brand: #006844;
+  --brand-ink: #ffffff;
+  --brand-soft: #e3f2ec;
+  --up: #0a7a4f;
+  --up-soft: #e3f4ec;
+  --down: #c43d2f;
+  --down-soft: #fdeceb;
+  --warn: #8a6100;
+  --warn-soft: #fff6dd;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-page: var(--page);
+  --color-card: var(--card);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-up: var(--up);
+  --color-up-soft: var(--up-soft);
+  --color-down: var(--down);
+  --color-down-soft: var(--down-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --font-sans: var(--font-plex), system-ui, sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-plex), system-ui, sans-serif;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 10px;
+  background: var(--brand);
+  color: var(--brand-ink);
+  padding: 0.75rem 1.25rem;
+  font-weight: 700;
+  transition: background-color 0.15s;
+}
+.btn-primary:hover {
+  background: #00553a;
+}
+
+.btn-quiet {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  padding: 0.6rem 1rem;
+  font-weight: 600;
+  transition: background-color 0.15s;
+}
+.btn-quiet:hover {
+  background: var(--brand-soft);
+}
+
+.field {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  padding: 0.75rem 1rem;
+  color: var(--ink);
+}
+.field::placeholder {
+  color: #93a39e;
+}
+.field:focus {
+  border-color: var(--brand);
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(0 104 68 / 0.12);
+}
+
+/* Switch built from a checkbox: <label class="switch"><input type="checkbox" /><span /></label> */
+.switch {
+  position: relative;
+  display: inline-block;
+  height: 1.5rem;
+  width: 2.75rem;
+  flex-shrink: 0;
+}
+.switch input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  height: 100%;
+  width: 100%;
+  cursor: pointer;
+  opacity: 0;
+}
+.switch span {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--line);
+  transition: background-color 0.15s;
+}
+.switch span::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  inset-inline-start: 3px;
+  height: 1.125rem;
+  width: 1.125rem;
+  border-radius: 999px;
+  background: #fff;
+  transition: transform 0.15s;
+}
+.switch input:checked + span {
+  background: var(--brand);
+}
+.switch input:checked + span::after {
+  transform: translateX(-1.25rem);
+}
+.switch input:focus-visible + span {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
 }

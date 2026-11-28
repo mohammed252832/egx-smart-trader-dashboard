@@ -1,14 +1,14 @@
 import type { ReactNode } from "react";
-import { Sidebar } from "@/app/sidebar";
+import { SiteHeader } from "@/app/site-header";
 import { requireUser } from "@/lib/auth";
 
 export const instant = false;
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
-  await requireUser();
+  const user = await requireUser();
   return (
     <>
-      <Sidebar />
+      <SiteHeader displayName={user.displayName} />
       {children}
     </>
   );
