@@ -155,3 +155,12 @@ export type LiquidRisingPick = {
   liquidity_rank: number;
   median_daily_value_egp: number;
 };
+
+export type DataNotice = {
+  id: string;
+  level: "warn" | "error";
+  title: string;
+  body: string;
+  /** Raw technical text (provider errors), shown collapsed. */
+  details?: string;
+};
