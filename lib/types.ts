@@ -102,3 +102,56 @@ export type StockChartData = {
   sector: string | null;
   bars: MonthlyBar[];
 };
+
+export type MarketState = "صاعد" | "هابط" | "متذبذب";
+
+export type MarketStatePoint = {
+  trade_date: string;
+  index_value: number;
+  change_pct: number;
+  ma5: number | null;
+  ma20: number | null;
+  advancers: number;
+  decliners: number;
+  symbols: number;
+  value_traded_egp: number;
+  market_state: MarketState | null;
+};
+
+export type LiquidityDay = {
+  trade_date: string;
+  total_value_egp: number;
+  total_volume: number;
+  symbols_traded: number;
+};
+
+export type LiquidityLeader = {
+  symbol: string;
+  name: string;
+  sector: string | null;
+  trade_date: string;
+  close: number;
+  volume: number;
+  value_egp: number;
+  change_pct: number | null;
+  liquidity_rank: number;
+};
+
+export type LiquidRisingPick = {
+  id: string;
+  symbol: string;
+  name: string;
+  as_of: string;
+  horizon_days: number;
+  entry_price: number;
+  target_price: number;
+  stop_loss: number;
+  upside_pct: number;
+  risk_pct: number;
+  reward_risk: number;
+  score: number;
+  probability: number | null;
+  signal: string;
+  liquidity_rank: number;
+  median_daily_value_egp: number;
+};

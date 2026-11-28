@@ -1,35 +1,55 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuthShell } from "@/app/auth-shell";
 import { getCurrentUser } from "@/lib/auth";
 
 export const instant = false;
 
+const ERRORS: Record<string, string> = {
+  invalid: "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
+  unconfirmed: "لم يتم تأكيد البريد الإلكتروني بعد. افتح الرسالة التي وصلتك واضغط على رابط التأكيد.",
+  link: "رابط الدخول غير صالح أو منتهي.",
+  config: "إعدادات الدخول غير مكتملة على الخادم.",
+};
+
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; notice?: string }>;
 }) {
-  if (await getCurrentUser()) redirect("/");
+  const user = await getCurrentUser();
+  if (user) redirect(user.status === "approved" ? "/" : "/pending");
 
-  const { error } = await searchParams;
-  const message = error === "invalid"
-    ? "كلمة المرور غير صحيحة."
-    : error === "link"
-      ? "رابط الدخول غير صالح أو منتهي."
-      : error === "config"
-        ? "إعدادات الدخول غير مكتملة على الخادم."
-        : null;
+  const { error, notice } = await searchParams;
+  const message = error ? ERRORS[error] ?? null : null;
 
   return (
-    <AuthShell>
+    <AuthShell title="تسجيل الدخول" subtitle="ادخل إلى حسابك لمتابعة فرص البورصة المصرية.">
+      {notice === "confirm" && (
+        <p className="mb-5 rounded-lg border border-up/30 bg-up-soft p-3 text-sm leading-6 text-up" role="status">
+          أنشأنا حسابك. أرسلنا رسالة تأكيد إلى بريدك؛ اضغط على الرابط فيها ثم سجّل الدخول. بعد ذلك ينتظر حسابك موافقة المسؤول.
+        </p>
+      )}
       {message && (
-        <p className="mb-5 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300" role="alert">
+        <p className="mb-5 rounded-lg border border-down/30 bg-down-soft p-3 text-sm text-down" role="alert">
           {message}
         </p>
       )}
       <form action="/auth/login" method="post" className="space-y-5">
-        <label className="block text-sm text-gray-300">
-          كلمة المرور المشتركة
+        <label className="block text-sm font-semibold">
+          البريد الإلكتروني
+          <input
+            name="email"
+            type="email"
+            dir="ltr"
+            autoComplete="email"
+            required
+            maxLength={254}
+            className="field mt-2 text-left"
+          />
+        </label>
+        <label className="block text-sm font-semibold">
+          كلمة المرور
           <input
             name="password"
             type="password"
@@ -38,15 +58,18 @@ export default async function LoginPage({
             required
             minLength={8}
             maxLength={72}
-            className="mt-2 w-full rounded-xl border border-white/10 bg-[#0a1120] px-4 py-3 text-left text-white outline-none focus:border-emerald-400"
+            className="field mt-2 text-left"
           />
         </label>
-        <button type="submit" className="w-full rounded-xl bg-emerald-500 px-5 py-3 font-bold text-[#07120d] transition hover:bg-emerald-400">
+        <button type="submit" className="btn-primary w-full">
           تسجيل الدخول
         </button>
       </form>
-      <p className="mt-5 text-center text-xs leading-6 text-gray-500">
-        الدخول متاح لمن يملك كلمة المرور. لا تشاركها إلا مع من تريد منحه الوصول.
+      <p className="mt-5 text-center text-sm text-muted">
+        ليس لديك حساب؟{" "}
+        <Link href="/signup" className="font-semibold text-brand hover:underline">
+          إنشاء حساب جديد
+        </Link>
       </p>
     </AuthShell>
   );

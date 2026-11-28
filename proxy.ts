@@ -1,6 +1,5 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { isAllowedEmail } from "@/lib/auth-policy";
 
 type PendingCookie = { name: string; value: string; options: CookieOptions };
 
@@ -12,6 +11,9 @@ function isProtectedPath(pathname: string): boolean {
     || pathname.startsWith("/charts/")
     || pathname === "/stocks"
     || pathname.startsWith("/stocks/")
+    || pathname === "/account"
+    || pathname.startsWith("/account/")
+    || pathname === "/pending"
     || pathname === "/api/recommendations"
     || pathname === "/auth/update-password";
 }
@@ -56,10 +58,9 @@ export async function proxy(request: NextRequest) {
   try {
     const { data, error } = await supabase.auth.getClaims();
     const claims = data?.claims;
-    authorized = !error
-      && Boolean(claims?.sub)
-      && isAllowedEmail(claims?.email ?? "")
-      && claims?.app_metadata?.role === "member";
+    // Approval (profiles.status) is enforced per page and by RLS; the proxy only
+    // refreshes the session and keeps signed-out visitors away from private pages.
+    authorized = !error && Boolean(claims?.sub);
   } catch (error) {
     console.error("Supabase session verification failed", error);
   }
@@ -80,8 +81,11 @@ export const config = {
     "/market/:path*",
     "/charts/:path*",
     "/stocks/:path*",
+    "/account/:path*",
+    "/pending",
     "/api/recommendations",
     "/login",
+    "/signup",
     "/forgot-password",
     "/auth/:path*",
   ],
